@@ -19,9 +19,11 @@
 		};
 
 		pm8941_clkdiv2: clkdiv@5c00 {
+			qcom,cxo-div = <1>; //Ginoee zhaocq 2013-09-03 for es325 mclk
 		};
 
 		pm8941_clkdiv3: clkdiv@5d00 {
+			qcom,cxo-div = <1>; 
 		};
 	};
 };
