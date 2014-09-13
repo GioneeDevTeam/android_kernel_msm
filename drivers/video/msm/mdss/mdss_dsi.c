@@ -1137,7 +1137,24 @@ int dsi_panel_device_register(struct platform_device *pdev,
 					ctrl_pdata->disp_te_gpio);
 	}
 
-
+#if defined(CONFIG_GN_Q_BSP_LCD_TPS65132_SUPPORT)
+	ctrl_pdata->tps_en_gpio = of_get_named_gpio(pdev->dev.of_node,
+						 "qcom,tps-enable-gpio", 0);
+	if (!gpio_is_valid(ctrl_pdata->tps_en_gpio)) {
+		pr_err("%s:%d, tps enable gpio not specified\n",
+						__func__, __LINE__);
+	} else {
+		rc = gpio_request(ctrl_pdata->tps_en_gpio, "tps_enable");
+		if (rc) {
+			pr_err("request reset gpio failed, rc=%d\n",
+				rc);
+			gpio_free(ctrl_pdata->tps_en_gpio);
+			if (gpio_is_valid(ctrl_pdata->disp_en_gpio))
+				gpio_free(ctrl_pdata->disp_en_gpio);
+			return -ENODEV;
+		}
+	}
+#endif
 	ctrl_pdata->rst_gpio = of_get_named_gpio(pdev->dev.of_node,
 						 "qcom,rst-gpio", 0);
 	if (!gpio_is_valid(ctrl_pdata->rst_gpio)) {
@@ -1168,7 +1185,9 @@ int dsi_panel_device_register(struct platform_device *pdev,
 	}
 
 	ctrl_pdata->panel_data.event_handler = mdss_dsi_event_handler;
-
+#if defined(CONFIG_GN_Q_BSP_LCD_REDUCE_FRAMERATE_SUPPORT)
+	ctrl_pdata->on_cmds_reduce_rate = panel_data->on_cmds_reduce_rate;
+#endif
 	ctrl_pdata->on_cmds = panel_data->on_cmds;
 	ctrl_pdata->off_cmds = panel_data->off_cmds;
 

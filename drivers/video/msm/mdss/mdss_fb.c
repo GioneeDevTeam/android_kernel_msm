@@ -59,6 +59,9 @@
 #endif
 
 #define MAX_FBI_LIST 32
+#if defined(CONFIG_GN_Q_BSP_LCD_REDUCE_FRAMERATE_SUPPORT)
+	bool reduce_rate = 0;
+#endif
 static struct fb_info *fbi_list[MAX_FBI_LIST];
 static int fbi_list_index;
 
@@ -638,13 +641,24 @@ void mdss_fb_set_backlight(struct msm_fb_data_type *mfd, u32 bkl_lvl)
 void mdss_fb_update_backlight(struct msm_fb_data_type *mfd)
 {
 	struct mdss_panel_data *pdata;
-
+#if defined(CONFIG_GN_Q_BSP_LCD_CHARGE_LOGO_SUPPORT) || defined(CONFIG_GN_Q_BSP_LCD_RECOVERY_DISPLAY_SUPPORT)
+	if((strstr(saved_command_line, "androidboot.mode=charger") != NULL) || (strstr(saved_command_line, "androidboot.mode=recovery") != NULL))
+	{
+		mfd->unset_bl_level = 100;
+	}
+#endif
 	if (mfd->unset_bl_level && !mfd->bl_updated) {
 		pdata = dev_get_platdata(&mfd->pdev->dev);
 		if ((pdata) && (pdata->set_backlight)) {
 			mutex_lock(&mfd->bl_lock);
 			mfd->bl_level = mfd->unset_bl_level;
 			pdata->set_backlight(pdata, mfd->bl_level);
+#if defined(CONFIG_GN_Q_BSP_LCD_CHARGE_LOGO_SUPPORT) || defined(CONFIG_GN_Q_BSP_LCD_RECOVERY_DISPLAY_SUPPORT)
+	if((strstr(saved_command_line, "androidboot.mode=charger") != NULL) || (strstr(saved_command_line, "androidboot.mode=recovery") != NULL))
+	{
+		mfd->unset_bl_level = 0;
+	}
+#endif
 			mfd->bl_level_old = mfd->unset_bl_level;
 			mutex_unlock(&mfd->bl_lock);
 			mfd->bl_updated = 1;
@@ -1687,6 +1701,15 @@ static int mdss_fb_ioctl(struct fb_info *info, unsigned int cmd,
 	mdss_fb_pan_idle(mfd);
 
 	switch (cmd) {
+#if defined(CONFIG_GN_Q_BSP_LCD_REDUCE_FRAMERATE_SUPPORT)
+	case MSMFB_CHANGE_FRAMERATE:
+		reduce_rate = 1;
+		break;
+										
+	case MSMFB_RECOVER_FRAMERATE:
+		reduce_rate = 0;
+		break;
+#endif
 	case MSMFB_CURSOR:
 		ret = mdss_fb_cursor(info, argp);
 		break;

@@ -23,9 +23,23 @@
 #include <linux/err.h>
 
 #include "mdss_dsi.h"
+#if defined(CONFIG_GN_DEVICE_TYPE_CHECK)
+#include <linux/gn_device_check.h>
+extern int gn_set_device_info(struct gn_device_info gn_dev_info);
+#endif
+
+#if defined(CONFIG_GN_Q_BSP_LCD_CHARGE_LOGO_SUPPORT)
+bool charge_logo;
+#endif
 
 #define DT_CMD_HDR 6
+#if defined(CONFIG_GN_Q_BSP_LCD_COMPATIBILITY_SUPPORT)
+	u32 panel_vendor;
+#endif
 
+#if defined(CONFIG_GN_Q_BSP_LCD_REDUCE_FRAMERATE_SUPPORT)
+	extern bool reduce_rate;
+#endif
 DEFINE_LED_TRIGGER(bl_led_trigger);
 
 static struct mdss_dsi_phy_ctrl phy_params;
@@ -181,6 +195,35 @@ void mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 	pr_debug("%s: enable = %d\n", __func__, enable);
 
 	if (enable) {
+#ifdef CONFIG_VENDOR_GN
+		gpio_set_value((ctrl_pdata->rst_gpio), 0);
+		mdelay(3);
+		if (gpio_is_valid(ctrl_pdata->disp_en_gpio))
+			gpio_set_value((ctrl_pdata->disp_en_gpio), 1);
+#if defined(CONFIG_GN_Q_BSP_LCD_TPS65132_SUPPORT)
+		set_vol_tps65132_positive();
+		mdelay(1);
+		if (gpio_is_valid(ctrl_pdata->tps_en_gpio))
+		{
+			gpio_set_value((ctrl_pdata->tps_en_gpio), 1);
+			set_vol_tps65132_nagetive();
+		}
+#endif
+		if (ctrl_pdata->ctrl_state & CTRL_STATE_PANEL_INIT) {
+			pr_debug("%s: Panel Not properly turned OFF\n",
+						__func__);
+			ctrl_pdata->ctrl_state &= ~CTRL_STATE_PANEL_INIT;
+			pr_debug("%s: Reset panel done\n", __func__);
+		}
+
+		mdelay(1);
+		gpio_set_value((ctrl_pdata->rst_gpio), 1);
+		mdelay(3);
+#if defined(CONFIG_GN_Q_BSP_LCD_CHARGE_LOGO_SUPPORT)
+		charge_logo = 1;
+#endif
+
+#else
 		gpio_set_value((ctrl_pdata->rst_gpio), 1);
 		msleep(20);
 		gpio_set_value((ctrl_pdata->rst_gpio), 0);
@@ -195,12 +238,29 @@ void mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 			ctrl_pdata->ctrl_state &= ~CTRL_STATE_PANEL_INIT;
 			pr_debug("%s: Reset panel done\n", __func__);
 		}
+#endif
 	} else {
 		gpio_set_value((ctrl_pdata->rst_gpio), 0);
+		mdelay(10); // add for IC request
+#if defined(CONFIG_GN_Q_BSP_LCD_TPS65132_SUPPORT)
+		if (gpio_is_valid(ctrl_pdata->tps_en_gpio))
+			gpio_set_value((ctrl_pdata->tps_en_gpio), 0);
+		mdelay(1);
+#endif
 		if (gpio_is_valid(ctrl_pdata->disp_en_gpio))
 			gpio_set_value((ctrl_pdata->disp_en_gpio), 0);
+#if defined(CONFIG_GN_Q_BSP_LCD_CHARGE_LOGO_SUPPORT)
+		charge_logo = 0;
+#endif
 	}
 }
+
+#if defined(CONFIG_GN_Q_BSP_BACKLIGHT_LM3630_SUPPORT)
+void mdss_dsi_panel_lm3630(unsigned int bl_level)
+{
+	set_backlight_lm3630(bl_level);
+}
+#endif
 
 static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 							u32 bl_level)
@@ -225,6 +285,11 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 	case BL_DCS_CMD:
 		mdss_dsi_panel_bklt_dcs(ctrl_pdata, bl_level);
 		break;
+#if defined(CONFIG_GN_Q_BSP_BACKLIGHT_LM3630_SUPPORT)
+	case BL_LM3630:
+		mdss_dsi_panel_lm3630(bl_level);
+		break;
+#endif
 	default:
 		pr_err("%s: Unknown bl_ctrl configuration\n",
 			__func__);
@@ -248,9 +313,23 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 
 	pr_debug("%s: ctrl=%p ndx=%d\n", __func__, ctrl, ctrl->ndx);
 
-	if (ctrl->on_cmds.cmd_cnt)
-		mdss_dsi_panel_cmds_send(ctrl, &ctrl->on_cmds);
-
+	pr_info("%s:-\n", __func__);
+#if defined(CONFIG_GN_Q_BSP_LCD_REDUCE_FRAMERATE_SUPPORT)
+	if(reduce_rate == 1)
+	{
+		if (ctrl->on_cmds.cmd_cnt)
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->on_cmds_reduce_rate);
+		printk("reduce the framerate\n");
+	}
+	else
+	{
+		if (ctrl->on_cmds.cmd_cnt)
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->on_cmds);
+	}
+#else
+		if (ctrl->on_cmds.cmd_cnt)
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->on_cmds);
+#endif
 	pr_debug("%s:-\n", __func__);
 	return 0;
 }
@@ -413,6 +492,43 @@ static int mdss_panel_parse_dt(struct platform_device *pdev,
 		panel_data->panel_info.pdest = DISPLAY_1;
 	}
 
+#if defined(CONFIG_GN_Q_BSP_LCD_COMPATIBILITY_SUPPORT)
+	if(panel_vendor == 0)  /*0 == truly*/
+	{
+		rc = of_property_read_u32_array(np,
+		"qcom,mdss-pan-porch-values-truly", res, 6);
+		panel_data->panel_info.lcdc.h_back_porch = (!rc ? res[0] : 6);
+		panel_data->panel_info.lcdc.h_pulse_width = (!rc ? res[1] : 2);
+		panel_data->panel_info.lcdc.h_front_porch = (!rc ? res[2] : 6);
+		panel_data->panel_info.lcdc.v_back_porch = (!rc ? res[3] : 6);
+		panel_data->panel_info.lcdc.v_pulse_width = (!rc ? res[4] : 2);
+		panel_data->panel_info.lcdc.v_front_porch = (!rc ? res[5] : 6);
+	}
+	else if(panel_vendor == 1)  /*1 == tianma*/
+	{
+		rc = of_property_read_u32_array(np,
+		"qcom,mdss-pan-porch-values-tianma", res, 6);
+		panel_data->panel_info.lcdc.h_back_porch = (!rc ? res[0] : 6);
+		panel_data->panel_info.lcdc.h_pulse_width = (!rc ? res[1] : 2);
+		panel_data->panel_info.lcdc.h_front_porch = (!rc ? res[2] : 6);
+		panel_data->panel_info.lcdc.v_back_porch = (!rc ? res[3] : 6);
+		panel_data->panel_info.lcdc.v_pulse_width = (!rc ? res[4] : 2);
+		panel_data->panel_info.lcdc.v_front_porch = (!rc ? res[5] : 6);
+	}
+	else if(panel_vendor == 2)  /*2 == jdi*/
+	{
+		rc = of_property_read_u32_array(np,
+		"qcom,mdss-pan-porch-values-jdi", res, 6);
+		panel_data->panel_info.lcdc.h_back_porch = (!rc ? res[0] : 6);
+		panel_data->panel_info.lcdc.h_pulse_width = (!rc ? res[1] : 2);
+		panel_data->panel_info.lcdc.h_front_porch = (!rc ? res[2] : 6);
+		panel_data->panel_info.lcdc.v_back_porch = (!rc ? res[3] : 6);
+		panel_data->panel_info.lcdc.v_pulse_width = (!rc ? res[4] : 2);
+		panel_data->panel_info.lcdc.v_front_porch = (!rc ? res[5] : 6);
+	}
+	else
+		printk("panel porch not found\n");
+#else
 	rc = of_property_read_u32_array(np,
 		"qcom,mdss-pan-porch-values", res, 6);
 	panel_data->panel_info.lcdc.h_back_porch = (!rc ? res[0] : 6);
@@ -421,7 +537,7 @@ static int mdss_panel_parse_dt(struct platform_device *pdev,
 	panel_data->panel_info.lcdc.v_back_porch = (!rc ? res[3] : 6);
 	panel_data->panel_info.lcdc.v_pulse_width = (!rc ? res[4] : 2);
 	panel_data->panel_info.lcdc.v_front_porch = (!rc ? res[5] : 6);
-
+#endif
 	rc = of_property_read_u32(np,
 		"qcom,mdss-pan-underflow-clr", &tmp);
 	panel_data->panel_info.lcdc.underflow_clr = (!rc ? tmp : 0xff);
@@ -456,7 +572,13 @@ static int mdss_panel_parse_dt(struct platform_device *pdev,
 		panel_data->panel_info.pwm_pmic_gpio =  tmp;
 	} else if (!strncmp(bl_ctrl_type, "bl_ctrl_dcs", 11)) {
 		panel_data->panel_info.bklt_ctrl = BL_DCS_CMD;
-	} else {
+	}
+#if defined(CONFIG_GN_Q_BSP_BACKLIGHT_LM3630_SUPPORT)
+	else if (!strncmp(bl_ctrl_type, "bl_ctrl_lm3630", 14)) {
+		panel_data->panel_info.bklt_ctrl = BL_LM3630;
+	}
+#endif
+       	else {
 		pr_debug("%s: Unknown backlight control\n", __func__);
 		panel_data->panel_info.bklt_ctrl = UNKNOWN_CTRL;
 	}
@@ -572,6 +694,10 @@ static int mdss_panel_parse_dt(struct platform_device *pdev,
 	rc = of_property_read_u32(np, "qcom,mdss-pan-clk-rate", &tmp);
 	panel_data->panel_info.clk_rate = (!rc ? tmp : 0);
 
+#if defined(CONFIG_GN_Q_BSP_LCD_TRULY_R63417_SUPPORT) || defined (CONFIG_GN_Q_BSP_LCD_JDI_R63417_SUPPORT) || defined(CONFIG_GN_Q_BSP_LCD_TIANMA_NT35595_SUPPORT)
+	rc = of_property_read_u32(np, "qcom,mdss-force-clk-hs", &tmp);
+	panel_data->panel_info.mipi.force_clk_lane_hs = (!rc ? tmp : 0);
+#endif
 	data = of_get_property(np, "qcom,panel-phy-regulatorSettings", &len);
 	if ((!data) || (len != 7)) {
 		pr_err("%s:%d, Unable to read Phy regulator settings",
@@ -666,12 +792,52 @@ static int mdss_panel_parse_dt(struct platform_device *pdev,
 			panel_data->panel_info.bpp;
 	}
 
+#if defined(CONFIG_GN_Q_BSP_LCD_COMPATIBILITY_SUPPORT)
+	if(panel_vendor == 0) /*0 == truly*/
+	{
+#if defined(CONFIG_GN_Q_BSP_LCD_REDUCE_FRAMERATE_SUPPORT)
+		mdss_dsi_parse_dcs_cmds(np, &panel_data->on_cmds_reduce_rate,
+			"qcom,panel-on-cmds-truly-reduce-rate", "qcom,on-cmds-dsi-state");
+#endif
+		mdss_dsi_parse_dcs_cmds(np, &panel_data->on_cmds,
+			"qcom,panel-on-cmds-truly", "qcom,on-cmds-dsi-state");
+
+		mdss_dsi_parse_dcs_cmds(np, &panel_data->off_cmds,
+			"qcom,panel-off-cmds", "qcom,off-cmds-dsi-state");
+	}
+	else if(panel_vendor == 1) /*1 == tianma*/
+	{
+#if defined(CONFIG_GN_Q_BSP_LCD_REDUCE_FRAMERATE_SUPPORT)
+		mdss_dsi_parse_dcs_cmds(np, &panel_data->on_cmds_reduce_rate,
+			"qcom,panel-on-cmds-tianma-reduce-rate", "qcom,on-cmds-dsi-state");
+#endif
+		mdss_dsi_parse_dcs_cmds(np, &panel_data->on_cmds,
+			"qcom,panel-on-cmds-tianma", "qcom,on-cmds-dsi-state");
+
+		mdss_dsi_parse_dcs_cmds(np, &panel_data->off_cmds,
+			"qcom,panel-off-cmds", "qcom,off-cmds-dsi-state");
+	}
+	else if(panel_vendor == 2) /*2 == jdi*/
+	{
+#if defined(CONFIG_GN_Q_BSP_LCD_REDUCE_FRAMERATE_SUPPORT)
+		mdss_dsi_parse_dcs_cmds(np, &panel_data->on_cmds_reduce_rate,
+			"qcom,panel-on-cmds-jdi-reduce-rate", "qcom,on-cmds-dsi-state");
+#endif
+		mdss_dsi_parse_dcs_cmds(np, &panel_data->on_cmds,
+			"qcom,panel-on-cmds-jdi", "qcom,on-cmds-dsi-state");
+
+		mdss_dsi_parse_dcs_cmds(np, &panel_data->off_cmds,
+			"qcom,panel-off-cmds", "qcom,off-cmds-dsi-state");
+	}
+	else
+		printk("panel init commands not found\n");
+#else
 	mdss_dsi_parse_dcs_cmds(np, &panel_data->on_cmds,
 		"qcom,panel-on-cmds", "qcom,on-cmds-dsi-state");
 
 	mdss_dsi_parse_dcs_cmds(np, &panel_data->off_cmds,
 		"qcom,panel-off-cmds", "qcom,off-cmds-dsi-state");
-
+#endif
 	return 0;
 
 error:
@@ -684,21 +850,137 @@ static int __devinit mdss_dsi_panel_probe(struct platform_device *pdev)
 	static struct mdss_panel_common_pdata vendor_pdata;
 	static const char *panel_name;
 
+#if defined(CONFIG_GN_Q_BSP_LCD_COMPATIBILITY_SUPPORT)
+	struct device_node *np = pdev->dev.of_node;
+	int panel_gpio_1;
+	int panel_gpio_2;
+	int value_1;
+	int value_2;
+	int tmp;
+#endif
+
+#if defined(CONFIG_GN_DEVICE_TYPE_CHECK) 
+	static const char *device_panel_name;
+	struct gn_device_info gn_mydev_info;
+	gn_mydev_info.gn_dev_type = GN_DEVICE_TYPE_LCD;
+#endif
+		
 	pr_debug("%s:%d, debug info id=%d", __func__, __LINE__, pdev->id);
 	if (!pdev->dev.of_node)
 		return -ENODEV;
+#if defined(CONFIG_GN_Q_BSP_LCD_COMPATIBILITY_SUPPORT)
+	tmp = of_get_named_gpio(np, "qcom,lcd-adc1", 0);
+	panel_gpio_1 = tmp;
+	tmp = of_get_named_gpio(np, "qcom,lcd-adc2", 0);
+	panel_gpio_2 = tmp;
+	
+	if (!gpio_is_valid(panel_gpio_1)) {
+		pr_err("%s:%d, compatibility gpio not specified\n",__func__, __LINE__);
+	}
+	else {
+		rc = gpio_request(panel_gpio_1, "lcd_compatibility");
+		if (rc) {
+			pr_err("request lcd compatibility gpio failed, rc=%d\n",rc);
+			gpio_free(panel_gpio_1);
+			return -ENODEV;
+		}
+	}
+	if (!gpio_is_valid(panel_gpio_2)) {
+		pr_err("%s:%d, compatibility gpio not specified\n",__func__, __LINE__);
+	}
+	else {
+		rc = gpio_request(panel_gpio_2, "lcd_compatibility");
+		if (rc) {
+			pr_err("request lcd compatibility gpio failed, rc=%d\n",rc);
+			gpio_free(panel_gpio_2);
+			return -ENODEV;
+		}
+	}
 
+	rc = gpio_tlmm_config(GPIO_CFG(panel_gpio_1, 1,GPIO_CFG_INPUT,GPIO_CFG_PULL_DOWN,GPIO_CFG_2MA),GPIO_CFG_ENABLE);
+	if (rc) {
+		pr_err("%s: unable to config tlmm = %d\n",__func__, panel_gpio_1);
+		gpio_free(panel_gpio_1);
+		return -ENODEV;
+	}											
+	rc = gpio_tlmm_config(GPIO_CFG(panel_gpio_2, 1,GPIO_CFG_INPUT,GPIO_CFG_PULL_DOWN,GPIO_CFG_2MA),GPIO_CFG_ENABLE);
+	if (rc) {
+		pr_err("%s: unable to config tlmm = %d\n",__func__, panel_gpio_2);
+		gpio_free(panel_gpio_2);
+		return -ENODEV;
+	}											
+
+	value_1 = gpio_get_value(panel_gpio_1);
+	value_2 = gpio_get_value(panel_gpio_2);
+
+	if(value_1 == 1 && value_2 == 1)
+	{
+		panel_vendor = 0;
+		printk("panel name = truly\n");
+	}
+	else if(value_1 == 1 && value_2 == 0)
+	{
+		panel_vendor = 1;
+		printk("panel name = tianma\n");
+	}
+	else if(value_1 == 0 && value_2 == 0)
+	{
+		panel_vendor = 2;  // 2 == jdi
+		printk("panel name = jdi\n");
+	}  
+	else
+	{
+		printk("panel not right\n");
+		return -ENODEV;
+	}
+#endif
+#if defined(CONFIG_GN_Q_BSP_LCD_COMPATIBILITY_SUPPORT)
+	if(panel_vendor == 0)  /*0 == truly*/
+	{
+		device_panel_name = "truly_r63417";
+		panel_name = of_get_property(pdev->dev.of_node, "label-truly", NULL);
+		if (!panel_name)
+			pr_info("%s:%d, panel name not specified\n",__func__,__LINE__);
+		else
+			pr_info("%s: Panel Name = %s\n", __func__, panel_name);
+	}
+	else if(panel_vendor == 1)  /*1 == tianma*/
+	{
+		device_panel_name = "tianma_nt35595";
+		panel_name = of_get_property(pdev->dev.of_node, "label-tianma", NULL);
+		if (!panel_name)
+			pr_info("%s:%d, panel name not specified\n",__func__,__LINE__);
+		else
+			pr_info("%s: Panel Name = %s\n", __func__, panel_name);
+	}
+	else if(panel_vendor == 2)  /*2 == jdi*/
+	{
+		device_panel_name = "jdi_r63417";
+		panel_name = of_get_property(pdev->dev.of_node, "label-jdi", NULL);
+		if (!panel_name)
+			pr_info("%s:%d, panel name not specified\n",__func__,__LINE__);
+		else
+			pr_info("%s: Panel Name = %s\n", __func__, panel_name);
+	}
+	else
+		printk("panel label not found\n");
+		
+#else
 	panel_name = of_get_property(pdev->dev.of_node, "label", NULL);
 	if (!panel_name)
 		pr_info("%s:%d, panel name not specified\n",
 						__func__, __LINE__);
 	else
 		pr_info("%s: Panel Name = %s\n", __func__, panel_name);
-
+#endif
 	rc = mdss_panel_parse_dt(pdev, &vendor_pdata);
 	if (rc)
 		return rc;
 
+#if defined(CONFIG_GN_DEVICE_TYPE_CHECK) 
+	strcpy(gn_mydev_info.name, device_panel_name);
+	gn_set_device_info(gn_mydev_info);
+#endif
 	vendor_pdata.on = mdss_dsi_panel_on;
 	vendor_pdata.off = mdss_dsi_panel_off;
 	vendor_pdata.bl_fnc = mdss_dsi_panel_bl_ctrl;

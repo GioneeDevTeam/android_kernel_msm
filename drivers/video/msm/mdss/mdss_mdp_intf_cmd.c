@@ -304,6 +304,9 @@ static void clk_ctrl_work(struct work_struct *work)
 
 	mdss_mdp_cmd_clk_off(ctx);
 }
+#if defined(CONFIG_GN_Q_BSP_SYNC_MDSS_VSYNC)
+static DEFINE_MUTEX(vsync_mutex);
+#endif
 
 static int mdss_mdp_cmd_add_vsync_handler(struct mdss_mdp_ctl *ctl,
 		struct mdss_mdp_vsync_handler *handle)
@@ -311,8 +314,14 @@ static int mdss_mdp_cmd_add_vsync_handler(struct mdss_mdp_ctl *ctl,
 	struct mdss_mdp_cmd_ctx *ctx;
 	unsigned long flags;
 
+#if defined(CONFIG_GN_Q_BSP_SYNC_MDSS_VSYNC)
+	mutex_lock(&vsync_mutex);
+#endif
 	ctx = (struct mdss_mdp_cmd_ctx *) ctl->priv_data;
 	if (!ctx) {
+#if defined(CONFIG_GN_Q_BSP_SYNC_MDSS_VSYNC)
+		mutex_unlock(&vsync_mutex);
+#endif
 		pr_err("%s: invalid ctx\n", __func__);
 		return -ENODEV;
 	}
@@ -320,6 +329,9 @@ static int mdss_mdp_cmd_add_vsync_handler(struct mdss_mdp_ctl *ctl,
 	spin_lock_irqsave(&ctx->clk_lock, flags);
 	if (ctx->vsync_enabled) {
 		spin_unlock_irqrestore(&ctx->clk_lock, flags);
+#if defined(CONFIG_GN_Q_BSP_SYNC_MDSS_VSYNC)
+		mutex_unlock(&vsync_mutex);
+#endif
 		return 0;
 	}
 	ctx->vsync_enabled = 1;
@@ -327,6 +339,9 @@ static int mdss_mdp_cmd_add_vsync_handler(struct mdss_mdp_ctl *ctl,
 	spin_unlock_irqrestore(&ctx->clk_lock, flags);
 
 	mdss_mdp_cmd_clk_on(ctx);
+#if defined(CONFIG_GN_Q_BSP_SYNC_MDSS_VSYNC)
+	mutex_unlock(&vsync_mutex);
+#endif
 
 	return 0;
 }
@@ -455,8 +470,14 @@ int mdss_mdp_cmd_stop(struct mdss_mdp_ctl *ctl)
 	int need_wait = 0;
 	int ret = 0;
 
+#if defined(CONFIG_GN_Q_BSP_SYNC_MDSS_VSYNC)
+	mutex_lock(&vsync_mutex);
+#endif
 	ctx = (struct mdss_mdp_cmd_ctx *) ctl->priv_data;
 	if (!ctx) {
+#if defined(CONFIG_GN_Q_BSP_SYNC_MDSS_VSYNC)
+		mutex_unlock(&vsync_mutex);
+#endif
 		pr_err("invalid ctx\n");
 		return -ENODEV;
 	}
@@ -490,6 +511,9 @@ int mdss_mdp_cmd_stop(struct mdss_mdp_ctl *ctl)
 
 	memset(ctx, 0, sizeof(*ctx));
 	ctl->priv_data = NULL;
+#if defined(CONFIG_GN_Q_BSP_SYNC_MDSS_VSYNC)
+	mutex_unlock(&vsync_mutex);
+#endif
 
 	ret = mdss_mdp_ctl_intf_event(ctl, MDSS_EVENT_BLANK, NULL);
 	WARN(ret, "intf %d unblank error (%d)\n", ctl->intf_num, ret);

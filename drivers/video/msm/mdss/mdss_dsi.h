@@ -81,6 +81,9 @@ enum dsi_panel_bl_ctrl {
 	BL_PWM,
 	BL_WLED,
 	BL_DCS_CMD,
+#if defined(CONFIG_GN_Q_BSP_BACKLIGHT_LM3630_SUPPORT)
+	BL_LM3630,
+#endif
 	UNKNOWN_CTRL,
 };
 
@@ -299,7 +302,9 @@ struct mdss_panel_common_pdata {
 	int (*on) (struct mdss_panel_data *pdata);
 	int (*off) (struct mdss_panel_data *pdata);
 	void (*bl_fnc) (struct mdss_panel_data *pdata, u32 bl_level);
-
+#if defined(CONFIG_GN_Q_BSP_LCD_REDUCE_FRAMERATE_SUPPORT)
+	struct dsi_panel_cmds on_cmds_reduce_rate;
+#endif
 	struct dsi_panel_cmds on_cmds;
 	struct dsi_panel_cmds off_cmds;
 };
@@ -351,6 +356,12 @@ struct mdss_dsi_ctrl_pdata {
 	u32 dsi_irq_mask;
 	struct mdss_hw *dsi_hw;
 
+#if defined(CONFIG_GN_Q_BSP_LCD_REDUCE_FRAMERATE_SUPPORT)
+	struct dsi_panel_cmds on_cmds_reduce_rate;
+#endif
+#if defined(CONFIG_GN_Q_BSP_LCD_TPS65132_SUPPORT)
+	int tps_en_gpio;
+#endif
 	struct dsi_panel_cmds on_cmds;
 	struct dsi_panel_cmds off_cmds;
 
@@ -424,5 +435,11 @@ int mdss_dsi_cmdlist_put(struct mdss_dsi_ctrl_pdata *ctrl,
 				struct dcs_cmd_req *cmdreq);
 struct dcs_cmd_req *mdss_dsi_cmdlist_get(struct mdss_dsi_ctrl_pdata *ctrl);
 void mdss_dsi_cmdlist_kickoff(int intf);
-
+#if defined(CONFIG_GN_Q_BSP_BACKLIGHT_LM3630_SUPPORT)
+void set_backlight_lm3630(unsigned int level);
+#endif
+#if defined(CONFIG_GN_Q_BSP_LCD_TPS65132_SUPPORT)
+void set_vol_tps65132_positive(void);
+void set_vol_tps65132_nagetive(void);
+#endif
 #endif /* MDSS_DSI_H */
