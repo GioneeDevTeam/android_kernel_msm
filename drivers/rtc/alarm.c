@@ -170,6 +170,19 @@ void alarm_init(struct alarm *alarm,
 	pr_alarm(FLOW, "created alarm, type %d, func %pF\n", type, function);
 }
 
+#if defined(CONFIG_GN_Q_BSP_KERNEL_RTC_ALARM_SUPPORT)
+static int alarm_rtc_deviceup = 0;
+
+void set_alarm_rtc_deviceup_type(int isdeviceup)
+{
+	alarm_rtc_deviceup = isdeviceup;
+};
+
+int get_alarm_rtc_deviceup_type(void)
+{
+	return alarm_rtc_deviceup;
+};
+#endif
 
 /**
  * alarm_start_range - (re)start an alarm
@@ -493,6 +506,138 @@ static int alarm_resume(struct platform_device *pdev)
 	return 0;
 }
 
+#if defined(CONFIG_GN_Q_BSP_KERNEL_RTC_ALARM_SUPPORT)
+static ssize_t rtc_time_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	ssize_t ret = 0;
+	struct rtc_time rtc_time;
+	struct rtc_wkalrm alarm;
+//	unsigned long flags;
+	long rtc_secs, alarm_secs;
+
+	//spin_lock_irqsave(&alarm_slock, flags);
+
+	rtc_read_time(alarm_rtc_dev, &rtc_time);
+	rtc_tm_to_time(&rtc_time, &rtc_secs);
+
+	rtc_read_alarm(alarm_rtc_dev, &alarm);
+	rtc_tm_to_time(&alarm.time, &alarm_secs);
+
+	//spin_unlock_irqrestore(&alarm_slock, flags);
+
+	sprintf(buf, "0x%lx,0x%lx\n", alarm_secs, rtc_secs);
+	ret = strlen(buf) + 1;
+	return ret;
+}
+
+static DEVICE_ATTR(alarmtimeinpmic, 0440, rtc_time_show, NULL);
+
+static struct kobject *android_alarm_kobj;
+static int alarm_sysfs_add(void)
+{
+	int ret;
+	android_alarm_kobj = kobject_create_and_add("android_alarm", NULL);
+
+	if (android_alarm_kobj == NULL) {
+		printk(KERN_ERR "Alarm register failed\n");
+		ret = -ENOMEM;
+		goto err;
+	}
+
+	ret = sysfs_create_file(android_alarm_kobj, &dev_attr_alarmtimeinpmic.attr);
+	if (ret) {
+		printk(KERN_ERR "Alarm alarmtimeinpmic sysfs create file failed\n");
+		goto err4;
+	}
+
+	return 0;
+err4:
+	kobject_del(android_alarm_kobj);
+err:
+	return ret;
+}
+#endif
+
+#ifdef CONFIG_GN_Q_BSP_KERNEL_RTC_ALARM_SUPPORT
+//if alarm_time is 0, then disable alarm, else set alarm
+void set_alarm_register(long alarm_time_set)
+{
+	struct timespec wall_time;
+	struct rtc_time rtc_time;
+    struct rtc_wkalrm alarm;
+    long rtc_secs, alarm_delta, alarm_time;
+    int rc;
+    
+	rtc_read_time(alarm_rtc_dev, &rtc_time);
+	rtc_tm_to_time(&rtc_time, &rtc_secs);
+
+    if (alarm_time_set == 0){
+        alarm_time = rtc_secs + 311040000;
+        rtc_time_to_tm(alarm_time, &alarm.time);
+   	    alarm.enabled = 1;
+	    rc = rtc_set_alarm(alarm_rtc_dev, &alarm);
+	    if (rc)
+	        pr_alarm(ERROR, "disable power-on alarm failed\n");
+    	else
+		    pr_alarm(FLOW, "disable Power-on alarm succeed\n");		
+        return;
+    }
+
+	getnstimeofday(&wall_time);
+	alarm_delta = wall_time.tv_sec - rtc_secs;
+	alarm_time = alarm_time_set - alarm_delta;
+    
+	rtc_time_to_tm(alarm_time, &alarm.time);
+	alarm.enabled = 1;
+	rc = rtc_set_alarm(alarm_rtc_dev, &alarm);
+	if (rc)
+		pr_alarm(ERROR, "Unable to set power-on alarm\n");
+	else
+		pr_alarm(FLOW, "Power-on alarm set to %lu\n", alarm_time);
+}
+#endif
+
+#ifdef CONFIG_GN_Q_BSP_KERNEL_RTC_ALARM_SUPPORT
+static void alarm_shutdown(struct platform_device *dev)
+{
+	struct timespec wall_time;
+	struct rtc_time rtc_time;
+	struct rtc_wkalrm alarm;
+	unsigned long flags;
+	long rtc_secs, alarm_delta, alarm_time;
+	int rc;
+	
+	spin_lock_irqsave(&alarm_slock, flags);
+
+    //poweroff charger mode
+    if(strstr(saved_command_line, "androidboot.mode=charger") != NULL){
+        rtc_read_time(alarm_rtc_dev, &rtc_time);
+        rtc_tm_to_time(&rtc_time, &rtc_secs);
+        getnstimeofday(&wall_time);
+        alarm_delta = wall_time.tv_sec - rtc_secs;
+        alarm_time = power_on_alarm - alarm_delta;
+        rtc_read_alarm(alarm_rtc_dev, &alarm);
+        rtc_tm_to_time(&alarm.time, &alarm_time);
+        if(alarm_time <= rtc_secs){
+            spin_unlock_irqrestore(&alarm_slock, flags);
+		    return;
+        }
+        rtc_time_to_tm(alarm_time, &alarm.time);
+        alarm.enabled = 1;
+        rc = rtc_set_alarm(alarm_rtc_dev, &alarm);
+        if (rc)
+            pr_alarm(ERROR, "Unable to set power-on alarm\n");
+        else
+            pr_alarm(FLOW, "Power-on alarm set to %lu\n", alarm_time);
+        spin_unlock_irqrestore(&alarm_slock, flags);
+        return;
+	}else{
+        set_alarm_register(get_smallest_alarm_register_list_node_poweroff_alarm());
+    }
+	
+	spin_unlock_irqrestore(&alarm_slock, flags);
+}
+#else
 static void alarm_shutdown(struct platform_device *dev)
 {
 	struct timespec wall_time;
@@ -513,8 +658,8 @@ static void alarm_shutdown(struct platform_device *dev)
 	alarm_delta = wall_time.tv_sec - rtc_secs;
 	alarm_time = power_on_alarm - alarm_delta;
 	if (alarm_time <= rtc_secs)
-		goto disable_alarm;
-
+		goto disable_alarm;	
+	
 	rtc_time_to_tm(alarm_time, &alarm.time);
 	alarm.enabled = 1;
 	rc = rtc_set_alarm(alarm_rtc_dev, &alarm);
@@ -531,6 +676,7 @@ disable_alarm:
 	rtc_alarm_irq_enable(alarm_rtc_dev, 0);
 	spin_unlock_irqrestore(&alarm_slock, flags);
 }
+#endif
 
 static struct rtc_task alarm_rtc_task = {
 	.func = alarm_triggered_func
@@ -640,6 +786,9 @@ static int __init alarm_driver_init(void)
 	if (err < 0)
 		goto err2;
 
+#if defined(CONFIG_GN_Q_BSP_KERNEL_RTC_ALARM_SUPPORT)			
+	alarm_sysfs_add();
+#endif
 	return 0;
 
 err2:

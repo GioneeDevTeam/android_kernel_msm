@@ -25,6 +25,9 @@
 #include <linux/wakelock.h>
 
 #include <asm/mach/time.h>
+#if defined(CONFIG_GN_Q_BSP_KERNEL_RTC_ALARM_SUPPORT)
+#include <linux/slab.h>
+#endif
 
 #define ANDROID_ALARM_PRINT_INFO (1U << 0)
 #define ANDROID_ALARM_PRINT_IO (1U << 1)
@@ -58,6 +61,264 @@ static uint32_t wait_pending;
 
 static struct alarm alarms[ANDROID_ALARM_TYPE_COUNT];
 
+#if defined(CONFIG_GN_Q_BSP_KERNEL_RTC_ALARM_SUPPORT)
+void set_alarm_rtc_deviceup_type(int isdeviceup);
+int get_alarm_rtc_deviceup_type(void);
+static LIST_HEAD(my_alarm_regiseter_list);
+static LIST_HEAD(my_type0_list);
+
+//void show_my_alarm_register_list(void)
+//{
+    //struct alarm_register_list *pos, *n;
+
+    //printk(KERN_ERR "chuqf func: %s, show alarm list: \n", __func__);
+
+    //list_for_each_entry_safe(pos, n, &my_alarm_regiseter_list, entry){
+        //printk(KERN_ERR "chuqf %ld(%d)", pos->alarm_time, pos->alarm_type);
+    //}
+
+    //printk(KERN_ERR "\n");
+//}
+
+int add_my_alarm_register_list_node(long alarm_secs, int alarm_type)
+{
+    struct alarm_register_list *node = NULL; 
+    struct alarm_register_list *pos, *n;
+
+    if (alarm_secs == 0)
+        return 0;
+
+    list_for_each_entry_safe(pos, n, &my_alarm_regiseter_list, entry){
+        if ((pos->alarm_time == alarm_secs) && (pos->alarm_type == alarm_type)){
+            //show_my_alarm_register_list();
+            return 0;
+        }
+    }
+
+    node = kmalloc(sizeof(*node), GFP_KERNEL);
+
+	if (!node)
+		return -ENOMEM;
+
+    node->alarm_time = alarm_secs;
+    node->alarm_type = alarm_type;
+    list_add(&(node->entry), &my_alarm_regiseter_list);
+
+    //show_my_alarm_register_list();
+    return 0;
+}
+
+int delet_my_alarm_register_list_node(long alarm_secs, int alarm_type)
+{
+    struct alarm_register_list *pos, *n;
+
+    if (list_empty(&my_alarm_regiseter_list)){
+        return 0;
+    }
+
+    list_for_each_entry_safe(pos, n, &my_alarm_regiseter_list, entry){
+        if ((pos->alarm_time == alarm_secs) && (pos->alarm_type == alarm_type)){
+            list_del(&pos->entry);
+            kfree(pos);
+            pos = NULL;
+            return 0;
+        }
+    }
+
+    return -1;
+}
+
+int delet_my_alarm_register_list_invalid_nodes(void)
+{
+    struct alarm_register_list *pos, *n;
+	struct timespec current_secs;
+
+    if (list_empty(&my_alarm_regiseter_list)){
+        return 0;
+    }
+
+    getnstimeofday(&current_secs);
+
+    list_for_each_entry_safe(pos, n, &my_alarm_regiseter_list, entry){
+        if (pos->alarm_time <= current_secs.tv_sec){
+            list_del(&pos->entry);
+            kfree(pos);
+            pos = NULL;
+            return 0;
+        }
+    }
+
+    return 0;
+}
+
+///////////////////////////////////////////////////////
+#if 0
+void show_my_type0_list(void)
+{
+    struct alarm_register_list *pos, *n;
+
+    printk(KERN_ERR "chuqf func: %s, show alarm list: \n", __func__);
+
+    list_for_each_entry_safe(pos, n, &my_type0_list, entry){
+        printk(KERN_ERR "chuqf %ld(%d)", pos->alarm_time, pos->alarm_type);
+    }
+
+    printk(KERN_ERR "\n");
+}
+#endif
+
+int add_my_my_type0_list_node(long alarm_secs, int alarm_type)
+{
+    struct alarm_register_list *node = NULL; 
+    struct alarm_register_list *pos, *n;
+
+    if (alarm_secs == 0)
+        return 0;
+
+    list_for_each_entry_safe(pos, n, &my_type0_list, entry){
+        if ((pos->alarm_time == alarm_secs) && (pos->alarm_type == alarm_type)){
+            //show_my_type0_list();
+            return 0;
+        }
+    }
+
+    node = kmalloc(sizeof(*node), GFP_KERNEL);
+
+	if (!node)
+		return -ENOMEM;
+
+    node->alarm_time = alarm_secs;
+    node->alarm_type = alarm_type;
+    list_add(&(node->entry), &my_type0_list);
+
+    //show_my_type0_list();
+    return 0;
+}
+#if 0
+int delet_my_type0_list_node(long alarm_secs, int alarm_type)
+{
+    struct alarm_register_list *pos, *n;
+
+    if (list_empty(&my_type0_list)){
+        printk(KERN_ERR "chuqf alarm_register_list is empty\n");
+        return 0;
+    }
+
+    list_for_each_entry_safe(pos, n, &my_type0_list, entry){
+        if ((pos->alarm_time == alarm_secs) && (pos->alarm_type == alarm_type)){
+            list_del(&pos->entry);
+            printk(KERN_ERR "chuqf the element of %ld(%d) in my_type0_list is deleted\n", alarm_secs, alarm_type);
+            kfree(pos);
+            pos = NULL;
+            return 0;
+        }
+    }
+
+    printk(KERN_ERR "chuqf no element of %ld in my_type0_list\n", alarm_secs);
+    return -1;
+}
+#endif
+int delet_my_type0_list_invalid_nodes(void)
+{
+    struct alarm_register_list *pos, *n;
+	struct timespec current_secs;
+
+    if (list_empty(&my_type0_list)){
+        return 0;
+    }
+
+    getnstimeofday(&current_secs);
+
+    list_for_each_entry_safe(pos, n, &my_type0_list, entry){
+        if (pos->alarm_time <= current_secs.tv_sec){
+            list_del(&pos->entry);
+            kfree(pos);
+            pos = NULL;
+            return 0;
+        }
+    }
+
+    return 0;
+}
+
+long get_smallest_my_type0_list_node(void)
+{
+    struct alarm_register_list *pos, *n;
+	struct timespec current_secs;
+    long ret = 0;
+
+    if (list_empty(&my_type0_list)){
+        return 0;
+    }
+
+    getnstimeofday(&current_secs);
+
+    list_for_each_entry_safe(pos, n, &my_type0_list, entry){
+        if ((ret == 0) && (pos->alarm_time >= current_secs.tv_sec)){
+            ret = pos->alarm_time;
+        }
+        if (pos->alarm_time < ret){
+            ret = pos->alarm_time;
+        }
+    }
+
+    return ret;
+}
+
+///////////////////////////////////////////////////////
+
+long get_smallest_alarm_register_list_node_poweron_alarm(void)
+{
+    struct alarm_register_list *pos, *n;
+	struct timespec current_secs;
+    long ret = 0;
+
+    if (list_empty(&my_alarm_regiseter_list)){
+        return 0;
+    }
+
+    getnstimeofday(&current_secs);
+
+    list_for_each_entry_safe(pos, n, &my_alarm_regiseter_list, entry){
+        if ((ret == 0) && (pos->alarm_time >= current_secs.tv_sec)){
+            ret = pos->alarm_time;
+        }
+        if (pos->alarm_time < ret){
+            ret = pos->alarm_time;
+        }
+    }
+
+    return ret;
+}
+
+long get_smallest_alarm_register_list_node_poweroff_alarm(void)
+{
+    struct alarm_register_list *pos, *n;
+	struct timespec current_secs;
+    long ret = 0;
+
+    if (list_empty(&my_alarm_regiseter_list)){
+        return 0;
+    }
+
+    getnstimeofday(&current_secs);
+
+    list_for_each_entry_safe(pos, n, &my_alarm_regiseter_list, entry){
+        if ((ret == 0) && (pos->alarm_time > current_secs.tv_sec + AHEAD_TIME_ALARM_RTC_DEVICEUP)){
+            ret = pos->alarm_time;
+        }
+        if ((pos->alarm_time < ret) && (pos->alarm_time > current_secs.tv_sec + AHEAD_TIME_ALARM_RTC_DEVICEUP)){
+            ret = pos->alarm_time;
+        }
+    }
+
+    if (ret > current_secs.tv_sec + AHEAD_TIME_ALARM_RTC_DEVICEUP)
+	    return (ret - AHEAD_TIME_ALARM_RTC_DEVICEUP);
+	else
+        return 0;
+}
+#endif
+
 static long alarm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int rv = 0;
@@ -67,7 +328,19 @@ static long alarm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	struct timespec tmp_time;
 	enum android_alarm_type alarm_type = ANDROID_ALARM_IOCTL_TO_TYPE(cmd);
 	uint32_t alarm_type_mask = 1U << alarm_type;
-
+	
+#if defined(CONFIG_GN_Q_BSP_KERNEL_RTC_ALARM_SUPPORT)	
+    int alarm_regist_type = alarm_type;
+    long alarm_secs_to_set = 0;
+    long my_type0_val = 0;
+	if ((alarm_type == ANDROID_ALARM_RTC_DEVICEUP) || (alarm_type == ANDROID_ALARM_AUTO_BOOTUP)){
+		alarm_type = ANDROID_ALARM_RTC_WAKEUP;
+		alarm_type_mask = 1U << alarm_type;
+		set_alarm_rtc_deviceup_type(1);
+	}else
+	    set_alarm_rtc_deviceup_type(0);
+#endif
+		
 	if (alarm_type >= ANDROID_ALARM_TYPE_COUNT)
 		return -EINVAL;
 
@@ -89,6 +362,13 @@ static long alarm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	switch (ANDROID_ALARM_BASE_CMD(cmd)) {
 	case ANDROID_ALARM_CLEAR(0):
+#if defined(CONFIG_GN_Q_BSP_KERNEL_RTC_ALARM_SUPPORT)
+		if (copy_from_user(&new_alarm_time, (void __user *)arg, sizeof(new_alarm_time))) {
+			rv = -EFAULT;
+			goto err1;
+		}
+#endif
+
 		spin_lock_irqsave(&alarm_slock, flags);
 		pr_alarm(IO, "alarm %d clear\n", alarm_type);
 		alarm_try_to_cancel(&alarms[alarm_type]);
@@ -98,8 +378,20 @@ static long alarm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				wake_unlock(&alarm_wake_lock);
 		}
 		alarm_enabled &= ~alarm_type_mask;
+#if defined(CONFIG_GN_Q_BSP_KERNEL_RTC_ALARM_SUPPORT)
+		if ((alarm_type == ANDROID_ALARM_RTC_WAKEUP) && (get_alarm_rtc_deviceup_type() == 1)){
+			//printk(KERN_ERR "poweroff alarm clear\n");
+			set_alarm_rtc_deviceup_type(0);
+            delet_my_alarm_register_list_invalid_nodes();
+            delet_my_alarm_register_list_node(new_alarm_time.tv_sec, alarm_regist_type);
+            alarm_secs_to_set = get_smallest_alarm_register_list_node_poweron_alarm();
+            set_alarm_register(alarm_secs_to_set);
+			set_power_on_alarm(0);
+		}
+#else
 		if (alarm_type == ANDROID_ALARM_RTC_WAKEUP)
 			set_power_on_alarm(0);
+#endif
 		spin_unlock_irqrestore(&alarm_slock, flags);
 		break;
 
@@ -123,14 +415,51 @@ from_old_alarm_set:
 		spin_lock_irqsave(&alarm_slock, flags);
 		pr_alarm(IO, "alarm %d set %ld.%09ld\n", alarm_type,
 			new_alarm_time.tv_sec, new_alarm_time.tv_nsec);
+#if defined(CONFIG_GN_Q_BSP_KERNEL_RTC_ALARM_SUPPORT)
+		alarm_enabled |= alarm_type_mask;
+        if (alarm_type == 0){
+    		getnstimeofday(&tmp_time);
+			if (new_alarm_time.tv_sec <= tmp_time.tv_sec)
+			    new_alarm_time.tv_sec = 0;
+		    if (new_alarm_time.tv_sec != 0){
+                add_my_my_type0_list_node(new_alarm_time.tv_sec, 0);
+				my_type0_val = new_alarm_time.tv_sec;
+                delet_my_type0_list_invalid_nodes();
+                new_alarm_time.tv_sec = get_smallest_my_type0_list_node();
+	            alarm_start_range(&alarms[alarm_type], timespec_to_ktime(new_alarm_time), timespec_to_ktime(new_alarm_time));
+				new_alarm_time.tv_sec = my_type0_val;
+			}else{
+			    alarm_start_range(&alarms[alarm_type], timespec_to_ktime(new_alarm_time), timespec_to_ktime(new_alarm_time));
+			}
+        }else{
+	        alarm_start_range(&alarms[alarm_type], timespec_to_ktime(new_alarm_time), timespec_to_ktime(new_alarm_time));
+        }
+#else
 		alarm_enabled |= alarm_type_mask;
 		alarm_start_range(&alarms[alarm_type],
 			timespec_to_ktime(new_alarm_time),
 			timespec_to_ktime(new_alarm_time));
+#endif
+
+#if defined(CONFIG_GN_Q_BSP_KERNEL_RTC_ALARM_SUPPORT)
+		if ((alarm_type == ANDROID_ALARM_RTC_WAKEUP) && (ANDROID_ALARM_BASE_CMD(cmd) == ANDROID_ALARM_SET(0)) &&  (get_alarm_rtc_deviceup_type() == 1)){
+            getnstimeofday(&tmp_time);
+			//printk(KERN_ERR "poweroff alarm set at %ld, current_time: %ld\n", new_alarm_time.tv_sec, tmp_time.tv_sec);
+            if ((new_alarm_time.tv_sec != 0) && (tmp_time.tv_sec < new_alarm_time.tv_sec)){
+			    set_alarm_rtc_deviceup_type(0);
+                delet_my_alarm_register_list_invalid_nodes();
+                add_my_alarm_register_list_node(new_alarm_time.tv_sec, alarm_regist_type);
+                alarm_secs_to_set = get_smallest_alarm_register_list_node_poweron_alarm();
+                set_alarm_register(alarm_secs_to_set);
+                set_power_on_alarm(alarm_secs_to_set);
+            }
+		}
+#else
 		if ((alarm_type == ANDROID_ALARM_RTC_WAKEUP) &&
 				(ANDROID_ALARM_BASE_CMD(cmd) ==
 				 ANDROID_ALARM_SET(0)))
 			set_power_on_alarm(new_alarm_time.tv_sec);
+#endif
 		spin_unlock_irqrestore(&alarm_slock, flags);
 		if (ANDROID_ALARM_BASE_CMD(cmd) != ANDROID_ALARM_SET_AND_WAIT(0)
 		    && cmd != ANDROID_ALARM_SET_AND_WAIT_OLD)
