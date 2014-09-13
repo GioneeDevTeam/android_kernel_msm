@@ -20,6 +20,23 @@
 
 #define KS8851_IRQ_GPIO 94
 
+#ifdef CONFIG_GN_Q_BSP_CONFIG_GPIO52_SUPPORT
+static struct gpiomux_setting gpio_in_sleep_config = {
+	.func = GPIOMUX_FUNC_GPIO,
+	.drv = GPIOMUX_DRV_2MA,
+	.pull = GPIOMUX_PULL_DOWN,
+	.dir = GPIOMUX_IN,
+};
+
+static struct msm_gpiomux_config gpio52_config __initdata = {
+	.gpio = 52,
+	.settings = {
+		[GPIOMUX_ACTIVE]    = &gpio_in_sleep_config,
+		[GPIOMUX_SUSPENDED] = &gpio_in_sleep_config,
+	},
+};
+#endif
+
 static struct gpiomux_setting ap2mdm_cfg = {
 	.func = GPIOMUX_FUNC_GPIO,
 	.drv = GPIOMUX_DRV_8MA,
@@ -577,6 +594,18 @@ static struct msm_gpiomux_config msm_blsp_configs[] __initdata = {
 		},
 	},
 	{
+		.gpio      = 29,		/* BLSP6 QUP I2C_DAT */
+		.settings = {
+			[GPIOMUX_SUSPENDED] = &gpio_i2c_config,
+		},
+	},
+	{
+		.gpio      = 30,		/* BLSP6 QUP I2C_CLK */
+		.settings = {
+			[GPIOMUX_SUSPENDED] = &gpio_i2c_config,
+		},
+	},
+	{
 		.gpio      = 4,			/* BLSP2 UART TX */
 		.settings = {
 			[GPIOMUX_SUSPENDED] = &gpio_uart_config,
@@ -591,7 +620,7 @@ static struct msm_gpiomux_config msm_blsp_configs[] __initdata = {
 	{
 		.gpio      = 53,		/* BLSP2 QUP4 SPI_DATA_MOSI */
 		.settings = {
-			[GPIOMUX_ACTIVE] = &gpio_spi_config,
+			[GPIOMUX_ACTIVE] = &gpio_spi_cs1_config, //for es325 wakeup pin zhaocq20130803
 			[GPIOMUX_SUSPENDED] = &gpio_suspend_config[1],
 		},
 	},
@@ -612,7 +641,6 @@ static struct msm_gpiomux_config msm_blsp_configs[] __initdata = {
 	{
 		.gpio      = 55,		/* BLSP2 QUP4 SPI_CS0_N */
 		.settings = {
-			[GPIOMUX_ACTIVE] = &gpio_spi_config,
 			[GPIOMUX_SUSPENDED] = &gpio_suspend_config[0],
 		},
 	},
@@ -750,6 +778,16 @@ static struct msm_gpiomux_config msm_sensor_configs[] __initdata = {
 			[GPIOMUX_SUSPENDED] = &gpio_suspend_config[0],
 		},
 	},
+//add by chenqiang for camera gpio control
+#ifdef CONFIG_GN_CAMERA_SUPPORT
+	{
+		.gpio = 23, /* FLASH_LED_EN */
+		.settings = {
+			[GPIOMUX_ACTIVE]    = &cam_settings[3],   //0
+			[GPIOMUX_SUSPENDED] = &gpio_suspend_config[1],
+		},
+	},
+#else
 	{
 		.gpio = 23, /* FLASH_LED_EN */
 		.settings = {
@@ -757,6 +795,7 @@ static struct msm_gpiomux_config msm_sensor_configs[] __initdata = {
 			[GPIOMUX_SUSPENDED] = &gpio_suspend_config[1],
 		},
 	},
+#endif
 	{
 		.gpio = 24, /* FLASH_LED_NOW */
 		.settings = {
@@ -771,6 +810,16 @@ static struct msm_gpiomux_config msm_sensor_configs[] __initdata = {
 			[GPIOMUX_SUSPENDED] = &gpio_suspend_config[1],
 		},
 	},
+	//add by chenqiang for camera gpio control
+#ifdef CONFIG_GN_CAMERA_SUPPORT
+		{
+		.gpio = 26, /* WEBCAM2_RESET_N */
+		.settings = {
+			[GPIOMUX_ACTIVE]    = &cam_settings[3],
+			[GPIOMUX_SUSPENDED] = &gpio_suspend_config[1],
+		},
+	},
+#else
 	{
 		.gpio = 26, /* CAM_IRQ */
 		.settings = {
@@ -778,6 +827,7 @@ static struct msm_gpiomux_config msm_sensor_configs[] __initdata = {
 			[GPIOMUX_SUSPENDED] = &cam_settings[1],
 		},
 	},
+#endif
 	{
 		.gpio = 27, /* OIS_SYNC */
 		.settings = {
@@ -1193,12 +1243,16 @@ void __init msm_8974_init_gpiomux(void)
 		pr_err("%s failed %d\n", __func__, rc);
 		return;
 	}
+#ifdef CONFIG_GN_Q_BSP_CONFIG_GPIO52_SUPPORT
+	msm_gpiomux_install(&gpio52_config, 1);
+#endif
 
-	pr_err("%s:%d socinfo_get_version %x\n", __func__, __LINE__,
-		socinfo_get_version());
-	if (socinfo_get_version() >= 0x20000)
-		msm_tlmm_misc_reg_write(TLMM_SPARE_REG, 0xf);
-
+#ifdef CONFIG_GN_CAMERA_24M_MCLOCK_SUPPORT
+       pr_err("%s:%d socinfo_get_version %x\n", __func__, __LINE__,
+               socinfo_get_version());
+       if (socinfo_get_version() >= 0x20000)
+                msm_tlmm_misc_reg_write(TLMM_SPARE_REG, 0x5);
+#endif
 #if defined(CONFIG_KS8851) || defined(CONFIG_KS8851_MODULE)
 	msm_gpiomux_install(msm_eth_configs, ARRAY_SIZE(msm_eth_configs));
 #endif

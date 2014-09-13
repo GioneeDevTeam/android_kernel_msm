@@ -57,6 +57,9 @@
 #endif
 
 static int restart_mode;
+#if defined(CONFIG_GN_Q_BSP_NO_DOWNLOAD_MODE)
+static int enter_download = 0;
+#endif
 void *restart_reason;
 
 int pmic_reset_irq;
@@ -69,7 +72,13 @@ static bool dload_mode_enabled;
 
 /* Download mode master kill-switch */
 static int dload_set(const char *val, struct kernel_param *kp);
+
+#if defined(CONFIG_GN_Q_BSP_NO_DOWNLOAD_MODE)
+static int download_mode = 0;
+#else
 static int download_mode = 1;
+#endif
+
 module_param_call(download_mode, dload_set, param_get_int,
 			&download_mode, 0644);
 
@@ -134,6 +143,13 @@ void msm_set_restart_mode(int mode)
 	restart_mode = mode;
 }
 EXPORT_SYMBOL(msm_set_restart_mode);
+#if defined(CONFIG_GN_Q_BSP_NO_DOWNLOAD_MODE)
+void msm_set_enter_download_mode(int mode)
+{
+	enter_download = mode;
+}
+EXPORT_SYMBOL(msm_set_enter_download_mode);
+#endif
 
 static bool scm_pmic_arbiter_disable_supported;
 /*
@@ -237,6 +253,10 @@ static void msm_restart_prepare(const char *cmd)
 	/* Kill download mode if master-kill switch is set */
 	if (!download_mode)
 		set_dload_mode(0);
+#if defined(CONFIG_GN_Q_BSP_NO_DOWNLOAD_MODE)
+	if(enter_download)
+		set_dload_mode(1);
+#endif
 #endif
 
 	pm8xxx_reset_pwr_off(1);
