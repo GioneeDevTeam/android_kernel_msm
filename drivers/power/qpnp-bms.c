@@ -1776,9 +1776,18 @@ static int report_cc_based_soc(struct qpnp_bms_chip *chip)
 	pr_debug("last_soc = %d, calculated_soc = %d, soc = %d, time since last change = %d\n",
 			chip->last_soc, chip->calculated_soc,
 			soc, time_since_last_change_sec);
+#if defined(CONFIG_GN_Q_BSP_PM_BMS_LOG_SUPPORT)  
+	printk(KERN_INFO "last_soc = %d, calculated_soc = %d, soc = %d, time since last change = %d\n",
+			chip->last_soc, chip->calculated_soc,
+			soc, time_since_last_change_sec);
+#endif
+	
 	chip->last_soc = bound_soc(soc);
 	backup_soc_and_iavg(chip, batt_temp, chip->last_soc);
 	pr_debug("Reported SOC = %d\n", chip->last_soc);
+#if defined(CONFIG_GN_Q_BSP_PM_BMS_LOG_SUPPORT) 
+	printk(KERN_INFO "Reported SOC = %d\n", chip->last_soc);
+#endif
 	chip->t_soc_queried = now;
 	mutex_unlock(&chip->last_soc_mutex);
 
@@ -2052,6 +2061,12 @@ out:
 		ibat_ua, vbat_uv, ocv_est_uv, pc_est,
 		soc_est, n, delta_ocv_uv, chip->last_ocv_uv,
 		pc_new, soc_new, params->rbatt_mohm, slope);
+#if defined(CONFIG_GN_Q_BSP_PM_BMS_LOG_SUPPORT) 
+	printk(KERN_INFO "ibat_ua = %d, vbat_uv = %d, ocv_est_uv = %d, pc_est = %d, soc_est = %d, n = %d, delta_ocv_uv = %d, last_ocv_uv = %d, pc_new = %d, soc_new = %d, rbatt = %d, slope = %d\n",
+		ibat_ua, vbat_uv, ocv_est_uv, pc_est,
+		soc_est, n, delta_ocv_uv, chip->last_ocv_uv,
+		pc_new, soc_new, params->rbatt_mohm, slope);
+#endif
 
 	return soc;
 }
@@ -3307,7 +3322,7 @@ static int set_battery_data(struct qpnp_bms_chip *chip)
 {
 	int64_t battery_id;
 	struct bms_battery_data *batt_data;
-
+	
 	if (chip->batt_type == BATT_DESAY) {
 		batt_data = &desay_5200_data;
 	} else if (chip->batt_type == BATT_PALLADIUM) {
@@ -3318,7 +3333,14 @@ static int set_battery_data(struct qpnp_bms_chip *chip)
 		batt_data = &QRD_4v35_2000mAh_data;
 	} else if (chip->batt_type == BATT_QRD_4V2_1300MAH) {
 		batt_data = &qrd_4v2_1300mah_data;
-	} else {
+	}
+#if defined(CONFIG_GN_Q_BSP_PM_BMS_BATTERY_DATA_SUPPORT)
+     else if (chip->batt_type == BATT_GBW8901) {
+	    printk("set_battery_data chip->batt_type = BATT_GBW8901\n");
+		batt_data = &gbw8901_2500mAh_data;
+    } 
+#endif
+	 else {
 		battery_id = read_battery_id(chip);
 		if (battery_id < 0) {
 			pr_err("cannot read battery id err = %lld\n",
