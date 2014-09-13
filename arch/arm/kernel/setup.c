@@ -1050,9 +1050,15 @@ static const char *hwcap_str[] = {
 	NULL
 };
 
+#if defined(CONFIG_GN_Q_BSP_CPU_INFO_MODIFY)
+uint32_t socinfo_get_id(void);
+#endif
 static int c_show(struct seq_file *m, void *v)
 {
 	int i;
+#if defined(CONFIG_GN_Q_BSP_CPU_INFO_MODIFY)
+	int id;
+#endif
 
 	seq_printf(m, "Processor\t: %s rev %d (%s)\n",
 		   cpu_name, read_cpuid_id() & 15, elf_platform);
@@ -1104,8 +1110,45 @@ static int c_show(struct seq_file *m, void *v)
 	seq_printf(m, "CPU revision\t: %d\n", read_cpuid_id() & 15);
 
 	seq_puts(m, "\n");
-
+#if defined(CONFIG_GN_Q_BSP_CPU_INFO_MODIFY)
+	id = socinfo_get_id();
+	if(id == 126)
+		seq_printf(m, "Hardware\t: Qualcomm MSM 8974 (Flattened Device Tree)\n");
+	else if(id == 184)
+		seq_printf(m, "Hardware\t: Qualcomm MSM 8074 (Flattened Device Tree)\n");
+	else if(id == 185)
+		seq_printf(m, "Hardware\t: Qualcomm MSM 8274 (Flattened Device Tree)\n");
+	else if(id == 186)
+		seq_printf(m, "Hardware\t: Qualcomm MSM 8674 (Flattened Device Tree)\n");
+	else if(id == 208)
+		seq_printf(m, "Hardware\t: Qualcomm MSM 8074AA (Flattened Device Tree)\n");
+	else if(id == 211)
+		seq_printf(m, "Hardware\t: Qualcomm MSM 8274AA (Flattened Device Tree)\n");
+	else if(id == 214)
+		seq_printf(m, "Hardware\t: Qualcomm MSM 8674AA (Flattened Device Tree)\n");
+	else if(id == 217)
+		seq_printf(m, "Hardware\t: Qualcomm MSM 8974AA (Flattened Device Tree)\n");
+	else if(id == 209)
+		seq_printf(m, "Hardware\t: Qualcomm MSM 8074AB (Flattened Device Tree)\n");
+	else if(id == 212)
+		seq_printf(m, "Hardware\t: Qualcomm MSM 8274AB (Flattened Device Tree)\n");
+	else if(id == 215)
+		seq_printf(m, "Hardware\t: Qualcomm MSM 8674AB (Flattened Device Tree)\n");
+	else if(id == 218)
+		seq_printf(m, "Hardware\t: Qualcomm MSM 8974AB (Flattened Device Tree)\n");
+	else if(id == 194)
+		seq_printf(m, "Hardware\t: Qualcomm MSM 8974AC (Flattened Device Tree)\n");
+	else if(id == 210)
+		seq_printf(m, "Hardware\t: Qualcomm MSM 8074AC (Flattened Device Tree)\n");
+	else if(id == 213)
+		seq_printf(m, "Hardware\t: Qualcomm MSM 8274AC (Flattened Device Tree)\n");
+	else if(id == 216)
+		seq_printf(m, "Hardware\t: Qualcomm MSM 8674AC (Flattened Device Tree)\n");
+	else
+		seq_printf(m, "Hardware\t: %s\n", machine_name);
+#else
 	seq_printf(m, "Hardware\t: %s\n", machine_name);
+#endif
 	seq_printf(m, "Revision\t: %04x\n", system_rev);
 	seq_printf(m, "Serial\t\t: %08x%08x\n",
 		   system_serial_high, system_serial_low);
