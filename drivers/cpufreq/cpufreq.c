@@ -631,7 +631,11 @@ cpufreq_freq_attr_ro(related_cpus);
 cpufreq_freq_attr_ro(affected_cpus);
 cpufreq_freq_attr_ro(cpu_utilization);
 cpufreq_freq_attr_rw(scaling_min_freq);
+#if defined(CONFIG_GN_Q_BSP_CPU_WR_HOTPLUG_DISABLED_SUPPORT)
+cpufreq_freq_attr_rw_usr(scaling_max_freq);
+#else
 cpufreq_freq_attr_rw(scaling_max_freq);
+#endif
 cpufreq_freq_attr_rw(scaling_governor);
 cpufreq_freq_attr_rw(scaling_setspeed);
 
@@ -1860,6 +1864,28 @@ static int __cpuinit cpufreq_cpu_callback(struct notifier_block *nfb,
 		case CPU_ONLINE:
 		case CPU_ONLINE_FROZEN:
 			cpufreq_add_dev(dev, NULL);
+#if defined(CONFIG_GN_Q_BSP_CPUFREQ_LIMIT)
+			/* if min or max lock is set, online cpu needs to change it's own rate immediately after addind cpufreq_dev */
+			{
+				unsigned int target_freq, min_freq, max_freq;
+				struct cpufreq_policy *policy = cpufreq_cpu_get(cpu);
+				if (policy) {
+					min_freq = get_min_lock();
+					max_freq = get_max_lock();
+
+					target_freq = policy->cur;
+					if (min_freq && target_freq < min_freq)
+						target_freq = min_freq;
+					if (max_freq && target_freq > max_freq)
+						target_freq = max_freq;
+
+					if (target_freq != policy->cur)
+						__cpufreq_driver_target(policy, target_freq, CPUFREQ_RELATION_L);
+					
+					cpufreq_cpu_put(policy);				
+				}
+			}
+#endif
 			break;
 		case CPU_DOWN_PREPARE:
 		case CPU_DOWN_PREPARE_FROZEN:
