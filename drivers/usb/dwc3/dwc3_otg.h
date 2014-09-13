@@ -22,7 +22,11 @@
 #include <linux/usb/otg.h>
 #include "power.h"
 
+#if defined(CONFIG_GN_Q_BSP_PM8941_CHARGER_SUPPORT)
 #define DWC3_IDEV_CHG_MAX 1500
+#else
+#define DWC3_IDEV_CHG_MAX 1500
+#endif
 
 struct dwc3_charger;
 
