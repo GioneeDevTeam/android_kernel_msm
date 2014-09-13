@@ -26,6 +26,7 @@
 #include <linux/of_device.h>
 #include <linux/radix-tree.h>
 #include <linux/qpnp/pwm.h>
+#include <linux/delay.h>
 
 #define QPNP_LPG_DRIVER_NAME	"qcom,qpnp-pwm"
 #define QPNP_LPG_CHANNEL_BASE	"qpnp-lpg-channel-base"
@@ -477,12 +478,13 @@ static void qpnp_lpg_calc_period(unsigned int period_us,
 		if (n == 6 && best_m >= 3) {
 			n += 3;
 			best_m -= 3;
-		} else {
+		} 
+		/*	else {
 			if (n == 6) {
 				n += best_m;
 				best_m -= best_m;
 			}
-		}
+		} */
 	}
 
 	period->pwm_size = n;
@@ -987,7 +989,7 @@ static int qpnp_lpg_configure_lut_state(struct pwm_device *pwm,
 					addr, 1, chip);
 	if (rc)
 		return rc;
-
+	mdelay(5);
 	return qpnp_lpg_save_and_write(value1, mask1, reg1,
 					addr1, 1, chip);
 }
