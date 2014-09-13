@@ -17,6 +17,10 @@
 #include "msm_actuator.h"
 #include "msm_cci.h"
 
+#if defined (CONFIG_GN_Q_BSP_RM_LK_SUPPORT)
+#include <linux/gn_sec.h>
+#endif
+
 DEFINE_MSM_MUTEX(msm_actuator_mutex);
 
 /*#define MSM_ACUTUATOR_DEBUG*/
@@ -167,7 +171,18 @@ static void msm_actuator_write_focus(
 	uint16_t damping_code_step = 0;
 	uint16_t wait_time = 0;
 	CDBG("Enter\n");
-
+#ifdef CONFIG_GN_CAMERA_SUPPORT
+if((sign_direction==MSM_ACTUATOR_MOVE_SIGNED_FAR)&&(curr_lens_pos>=180)&&(code_boundary<=90))
+{
+	//damping_code_step = 30;
+        int code = 150;
+        wait_time = 15000;
+        if(curr_lens_pos < code)
+          code = curr_lens_pos;
+        a_ctrl->func_tbl->actuator_parse_i2c_params(a_ctrl,code, damping_params->hw_params, wait_time);
+        curr_lens_pos = code;
+}
+#endif
 	damping_code_step = damping_params->damping_step;
 	wait_time = damping_params->damping_delay;
 
@@ -300,6 +315,7 @@ static int32_t msm_actuator_move_focus(
 			a_ctrl->curr_region_index += sign_dir;
 		}
 		a_ctrl->curr_step_pos = target_step_pos;
+a_ctrl->current_lens_pos = a_ctrl->step_position_table[a_ctrl->curr_step_pos]; 
 	}
 
 	reg_setting.reg_setting = a_ctrl->i2c_reg_tbl;
@@ -395,7 +411,32 @@ static int32_t msm_actuator_set_default_focus(
 static int32_t msm_actuator_power_down(struct msm_actuator_ctrl_t *a_ctrl)
 {
 	int32_t rc = 0;
+	uint16_t code = 0; 
+        struct msm_camera_i2c_reg_setting reg_setting;
 	CDBG("Enter\n");
+	if(a_ctrl->i2c_reg_tbl != NULL)
+	{
+		code = a_ctrl->current_lens_pos;  //cc
+		while(code) { 
+		   //pr_err("%s: current_lens_pos = %d\n",__func__,code); 
+			code = (code > 30)?(code - 30) : 0; 
+			a_ctrl->i2c_tbl_index = 0;
+			a_ctrl->func_tbl->actuator_parse_i2c_params(a_ctrl,code, 6, 0); 
+			reg_setting.reg_setting = a_ctrl->i2c_reg_tbl;
+			reg_setting.data_type = a_ctrl->i2c_data_type;
+			reg_setting.size = a_ctrl->i2c_tbl_index;
+			rc = a_ctrl->i2c_client.i2c_func_tbl->i2c_write_table_w_microdelay(&a_ctrl->i2c_client, &reg_setting);
+			if (rc < 0) {
+				pr_err("%s:acthor i2c write error:%d\n",
+					   __func__, rc);
+				return rc; 
+			}  
+			usleep_range(7000, 8000); 
+		} 
+	}else{
+         pr_err("%s:acthor error for not init:%d\n",__func__, rc);
+        } 
+        
 	if (a_ctrl->vcm_enable) {
 		rc = gpio_direction_output(a_ctrl->vcm_pwd, 0);
 		if (!rc)
@@ -565,12 +606,23 @@ static int32_t msm_actuator_config(struct msm_actuator_ctrl_t *a_ctrl,
 		break;
 
 	case CFG_MOVE_FOCUS:
+//#if defined (CONFIG_GN_Q_BSP_RM_LK_SUPPORT)
+//        if (!go_rm_verified())
+//		    rc = 0;
+//		else
+//		    rc = a_ctrl->func_tbl->actuator_move_focus(a_ctrl, &cdata->cfg.move);
+//#else	
 		rc = a_ctrl->func_tbl->actuator_move_focus(a_ctrl,
 			&cdata->cfg.move);
+//#endif
 		if (rc < 0)
 			pr_err("move focus failed %d\n", rc);
 		break;
-
+	case CFG_ACTUATOR_POWERDOWN:    
+	   	rc = msm_actuator_power_down(a_ctrl); 
+	  	if (rc < 0) 
+		 pr_err("msm_actuator_power_down failed %d\n", rc); 
+		break; 
 	default:
 		break;
 	}
@@ -643,7 +695,9 @@ static int msm_actuator_close(struct v4l2_subdev *sd,
 	int rc = 0;
 	struct msm_actuator_ctrl_t *a_ctrl =  v4l2_get_subdevdata(sd);
 	CDBG("Enter\n");
+	mutex_lock(a_ctrl->actuator_mutex);
 	if (!a_ctrl) {
+		mutex_unlock(a_ctrl->actuator_mutex);
 		pr_err("failed\n");
 		return -EINVAL;
 	}
@@ -655,6 +709,7 @@ static int msm_actuator_close(struct v4l2_subdev *sd,
 	}
 	kfree(a_ctrl->i2c_reg_tbl);
 	a_ctrl->i2c_reg_tbl = NULL;
+	mutex_unlock(a_ctrl->actuator_mutex);
 
 	CDBG("Exit\n");
 	return rc;
