@@ -21,6 +21,10 @@
 #define MSMFB_IOCTL_MAGIC 'm'
 #define MSMFB_GRP_DISP          _IOW(MSMFB_IOCTL_MAGIC, 1, unsigned int)
 #define MSMFB_BLIT              _IOW(MSMFB_IOCTL_MAGIC, 2, unsigned int)
+#if defined(CONFIG_GN_Q_BSP_LCD_REDUCE_FRAMERATE_SUPPORT)
+#define MSMFB_CHANGE_FRAMERATE          _IOW(MSMFB_IOCTL_MAGIC, 3, unsigned int)
+#define MSMFB_RECOVER_FRAMERATE             _IOW(MSMFB_IOCTL_MAGIC, 4, unsigned int)
+#endif
 #define MSMFB_SUSPEND_SW_REFRESHER _IOW(MSMFB_IOCTL_MAGIC, 128, unsigned int)
 #define MSMFB_RESUME_SW_REFRESHER _IOW(MSMFB_IOCTL_MAGIC, 129, unsigned int)
 #define MSMFB_CURSOR _IOW(MSMFB_IOCTL_MAGIC, 130, struct fb_cursor)

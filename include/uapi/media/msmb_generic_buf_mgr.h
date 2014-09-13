@@ -16,4 +16,10 @@ struct msm_buf_mngr_info {
 	uint32_t index;
 };
 
+#define VIDIOC_MSM_BUF_MNGR_INIT \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 36, struct msm_buf_mngr_info)
+
+#define VIDIOC_MSM_BUF_MNGR_DEINIT \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 37, struct msm_buf_mngr_info)
+
 #endif

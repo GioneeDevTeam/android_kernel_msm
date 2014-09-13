@@ -18,6 +18,7 @@
 
 #include <linux/ioctl.h>
 #include <linux/time.h>
+#include <linux/list.h>
 
 enum android_alarm_type {
 	/* return code bit numbers or set alarm arg */
@@ -65,12 +66,27 @@ struct alarm {
 	void			(*function)(struct alarm *);
 };
 
+#ifdef CONFIG_GN_Q_BSP_KERNEL_RTC_ALARM_SUPPORT
+#define ANDROID_ALARM_RTC_DEVICEUP     6
+#define ANDROID_ALARM_AUTO_BOOTUP      7
+#define AHEAD_TIME_ALARM_RTC_DEVICEUP  (120)
+struct alarm_register_list {
+	struct list_head    entry;
+    long                alarm_time;
+    int                 alarm_type;
+};
+#endif
+
 void alarm_init(struct alarm *alarm,
 	enum android_alarm_type type, void (*function)(struct alarm *));
 void alarm_start_range(struct alarm *alarm, ktime_t start, ktime_t end);
 int alarm_try_to_cancel(struct alarm *alarm);
 int alarm_cancel(struct alarm *alarm);
 void set_power_on_alarm(long secs);
+#ifdef CONFIG_GN_Q_BSP_KERNEL_RTC_ALARM_SUPPORT
+void set_alarm_register(long alarm_time_set);
+long get_smallest_alarm_register_list_node_poweroff_alarm(void);
+#endif
 ktime_t alarm_get_elapsed_realtime(void);
 
 /* set rtc while preserving elapsed realtime */
