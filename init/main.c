@@ -75,6 +75,7 @@
 #include <asm/sections.h>
 #include <asm/cacheflush.h>
 
+#include <linux/bootprof.h>
 #ifdef CONFIG_X86_LOCAL_APIC
 #include <asm/smp.h>
 #endif
@@ -807,7 +808,7 @@ static noinline int init_post(void)
 	mark_rodata_ro();
 	system_state = SYSTEM_RUNNING;
 	numa_default_policy();
-
+	log_boot("Kernel_init_done");
 
 	current->signal->flags |= SIGNAL_UNKILLABLE;
 
