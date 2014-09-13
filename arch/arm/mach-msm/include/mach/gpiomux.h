@@ -113,7 +113,11 @@ struct msm_gpiomux_configs {
 enum msm_tlmm_misc_reg {
 	TLMM_ETM_MODE_REG = 0x2014,
 	TLMM_SDC2_HDRV_PULL_CTL = 0x2048,
-	TLMM_SPARE_REG = 0x2024,
+//add by chenqiang for camera 24M MCLOCK  begin
+#ifdef CONFIG_GN_CAMERA_24M_MCLOCK_SUPPORT
+    TLMM_SPARE_REG = 0x2024,
+#endif
+//add by chenqiang for camera 24M MCLOCK  end
 };
 
 void msm_tlmm_misc_reg_write(enum msm_tlmm_misc_reg misc_reg, int val);

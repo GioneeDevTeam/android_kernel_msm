@@ -16,6 +16,9 @@
 
 #define RESTART_NORMAL 0x0
 #define RESTART_DLOAD  0x1
+#if defined(CONFIG_GN_Q_BSP_NO_DOWNLOAD_MODE)
+#define ENTER_DOWNLOAD 0x1
+#endif
 
 #if defined(CONFIG_MSM_NATIVE_RESTART)
 void msm_set_restart_mode(int mode);
@@ -26,6 +29,9 @@ void fsm_restart(char mode, const char *cmd);
 #define msm_set_restart_mode(mode)
 #endif
 
+#if defined(CONFIG_GN_Q_BSP_NO_DOWNLOAD_MODE)
+void msm_set_enter_download_mode(int mode);
+#endif
 extern int pmic_reset_irq;
 
 #endif
