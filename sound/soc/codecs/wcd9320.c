@@ -38,6 +38,9 @@
 #include "wcd9320.h"
 #include "wcd9xxx-resmgr.h"
 #include "wcd9xxx-common.h"
+#ifdef CONFIG_SND_SOC_ES325
+#include "es325-export.h"
+#endif
 
 #define TAIKO_MAD_SLIMBUS_TX_PORT 12
 #define TAIKO_MAD_AUDIO_FIRMWARE_PATH "wcd9320/wcd9320_mad_audio.bin"
@@ -2456,6 +2459,11 @@ static int taiko_codec_enable_lineout(struct snd_soc_dapm_widget *w,
 	struct snd_soc_codec *codec = w->codec;
 	struct taiko_priv *taiko = snd_soc_codec_get_drvdata(codec);
 	u16 lineout_gain_reg;
+	
+#ifdef CONFIG_GN_Q_BSP_AUDIO_HEADSET_SUPPORT	
+	struct wcd9xxx_pdata *pdata;
+	pdata = dev_get_platdata(codec->dev->parent);
+#endif
 
 	pr_debug("%s %d %s\n", __func__, event, w->name);
 
@@ -2480,6 +2488,12 @@ static int taiko_codec_enable_lineout(struct snd_soc_dapm_widget *w,
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
+#ifdef CONFIG_GN_Q_BSP_AUDIO_HEADSET_SUPPORT
+	    if ( __gpio_get_value(pdata->pa_gpio) == 0) {
+	        gpio_set_value(pdata->pa_gpio, 1);
+	        pr_debug("%s(): pa_gpio_level = %d\n", __func__, __gpio_get_value(pdata->pa_gpio));
+	    }	
+#endif
 		snd_soc_update_bits(codec, lineout_gain_reg, 0x40, 0x40);
 		break;
 	case SND_SOC_DAPM_POST_PMU:
@@ -2492,6 +2506,12 @@ static int taiko_codec_enable_lineout(struct snd_soc_dapm_widget *w,
 		usleep_range(3000, 3000);
 		break;
 	case SND_SOC_DAPM_POST_PMD:
+#ifdef CONFIG_GN_Q_BSP_AUDIO_HEADSET_SUPPORT
+        if ( __gpio_get_value(pdata->pa_gpio) == 1) {
+            gpio_set_value(pdata->pa_gpio, 0);
+            pr_debug("%s(): pa_gpio_level = %d\n", __func__, __gpio_get_value(pdata->pa_gpio));
+        }
+#endif
 		wcd9xxx_clsh_fsm(codec, &taiko->clsh_d,
 						 WCD9XXX_CLSH_STATE_LO,
 						 WCD9XXX_CLSH_REQ_DISABLE,
@@ -4676,6 +4696,89 @@ static int taiko_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
+#ifdef CONFIG_SND_SOC_ES325
+static int taiko_es325_hw_params(struct snd_pcm_substream *substream,
+		struct snd_pcm_hw_params *params,
+		struct snd_soc_dai *dai)
+{
+	int rc = 0;
+	dev_err(dai->dev,"%s: dai_name = %s DAI-ID %x rate %d num_ch %d\n", __func__,
+			dai->name, dai->id, params_rate(params),
+			params_channels(params));
+
+	rc = taiko_hw_params(substream, params, dai);
+
+	if (es325_remote_route_enable(dai))
+		rc = es325_slim_hw_params(substream, params, dai);
+
+	return rc;
+}
+
+#define SLIM_BUGFIX
+static int taiko_es325_set_channel_map(struct snd_soc_dai *dai,
+				unsigned int tx_num, unsigned int *tx_slot,
+				unsigned int rx_num, unsigned int *rx_slot)
+
+{
+#if !defined(SLIM_BUGFIX)
+	unsigned int taiko_tx_num = 0;
+#endif
+	unsigned int taiko_tx_slot[6];
+#if !defined(SLIM_BUGFIX)
+	unsigned int taiko_rx_num = 0;
+#endif
+	unsigned int taiko_rx_slot[6];
+#if defined(SLIM_BUGFIX)
+	unsigned int temp_tx_num = 0;
+	unsigned int temp_rx_num = 0;
+#endif
+	int rc = 0;
+
+	if (es325_remote_route_enable(dai)) {
+#if defined(SLIM_BUGFIX)
+		rc = taiko_get_channel_map(dai, &temp_tx_num, taiko_tx_slot,
+					&temp_rx_num, taiko_rx_slot);
+#else
+		rc = taiko_get_channel_map(dai, &taiko_tx_num, taiko_tx_slot,
+					&taiko_rx_num, taiko_rx_slot);
+#endif
+
+		rc = taiko_set_channel_map(dai, tx_num, taiko_tx_slot, rx_num, taiko_rx_slot);
+
+		rc = es325_slim_set_channel_map(dai, tx_num, tx_slot, rx_num, rx_slot);
+	} else
+		rc = taiko_set_channel_map(dai, tx_num, tx_slot, rx_num, rx_slot);
+
+	return rc;
+}
+
+static int taiko_es325_get_channel_map(struct snd_soc_dai *dai,
+				unsigned int *tx_num, unsigned int *tx_slot,
+				unsigned int *rx_num, unsigned int *rx_slot)
+
+{
+	int rc = 0;
+
+	if (es325_remote_route_enable(dai))
+		rc = es325_slim_get_channel_map(dai, tx_num, tx_slot, rx_num, rx_slot);
+	else
+		rc = taiko_get_channel_map(dai, tx_num, tx_slot, rx_num, rx_slot);
+
+	return rc;
+}
+#endif
+
+#ifdef CONFIG_SND_SOC_ES325
+static struct snd_soc_dai_ops taiko_dai_ops = {
+	.startup = taiko_startup,
+	.shutdown = taiko_shutdown,
+	.hw_params = taiko_es325_hw_params, /* tabla_hw_params, */
+	.set_sysclk = taiko_set_dai_sysclk,
+	.set_fmt = taiko_set_dai_fmt,
+	.set_channel_map = taiko_es325_set_channel_map, /* tabla_set_channel_map, */
+	.get_channel_map = taiko_es325_get_channel_map, /* tabla_get_channel_map, */
+};
+#else
 static struct snd_soc_dai_ops taiko_dai_ops = {
 	.startup = taiko_startup,
 	.shutdown = taiko_shutdown,
@@ -4685,7 +4788,16 @@ static struct snd_soc_dai_ops taiko_dai_ops = {
 	.set_channel_map = taiko_set_channel_map,
 	.get_channel_map = taiko_get_channel_map,
 };
+#endif
 
+#ifdef CONFIG_SND_SOC_ES325
+static struct snd_soc_dai_ops taiko_es325_dai_ops = {
+	.startup = taiko_startup,
+	.hw_params = taiko_es325_hw_params,
+	.set_channel_map = taiko_es325_set_channel_map,
+	.get_channel_map = taiko_es325_get_channel_map,
+};
+#endif
 static struct snd_soc_dai_driver taiko_dai[] = {
 	{
 		.name = "taiko_rx1",
@@ -4799,6 +4911,50 @@ static struct snd_soc_dai_driver taiko_dai[] = {
 		},
 		.ops = &taiko_dai_ops,
 	},
+#ifdef CONFIG_SND_SOC_ES325
+	{
+		.name = "taiko_es325_rx1",
+		.id = AIF1_PB + ES325_DAI_ID_OFFSET,
+		.playback = {
+			.stream_name = "AIF1 Playback",
+			.rates = WCD9320_RATES,
+			.formats = TAIKO_FORMATS,
+			.rate_max = 192000,
+			.rate_min = 8000,
+			.channels_min = 1,
+			.channels_max = 2,
+		},
+		.ops = &taiko_es325_dai_ops,
+	},
+	{
+		.name = "taiko_es325_tx1",
+		.id = AIF1_CAP + ES325_DAI_ID_OFFSET,
+		.capture = {
+			.stream_name = "AIF1 Capture",
+			.rates = WCD9320_RATES,
+			.formats = TAIKO_FORMATS,
+			.rate_max = 192000,
+			.rate_min = 8000,
+			.channels_min = 1,
+			.channels_max = 2,
+		},
+		.ops = &taiko_es325_dai_ops,
+	},
+	{
+		.name = "taiko_es325_rx2",
+		.id = AIF2_PB + ES325_DAI_ID_OFFSET,
+		.playback = {
+			.stream_name = "AIF2 Playback",
+			.rates = WCD9320_RATES,
+			.formats = TAIKO_FORMATS,
+			.rate_max = 192000,
+			.rate_min = 8000,
+			.channels_min = 1,
+			.channels_max = 2,
+		},
+		.ops = &taiko_es325_dai_ops,
+	},
+#endif
 };
 
 static struct snd_soc_dai_driver taiko_i2s_dai[] = {
@@ -4962,8 +5118,14 @@ static int taiko_codec_enable_slimrx(struct snd_soc_dapm_widget *w,
 		ret = wcd9xxx_cfg_slim_sch_rx(core, &dai->wcd9xxx_ch_list,
 					      dai->rate, dai->bit_width,
 					      &dai->grph);
+#ifdef CONFIG_SND_SOC_ES325
+		ret = es325_remote_cfg_slim_rx(w->shift);
+#endif
 		break;
 	case SND_SOC_DAPM_POST_PMD:
+#ifdef CONFIG_SND_SOC_ES325
+		ret = es325_remote_close_slim_rx(w->shift);
+#endif
 		ret = wcd9xxx_close_slim_sch_rx(core, &dai->wcd9xxx_ch_list,
 						dai->grph);
 		ret = taiko_codec_enable_slim_chmask(dai, false);
@@ -5084,8 +5246,14 @@ static int taiko_codec_enable_slimtx(struct snd_soc_dapm_widget *w,
 		ret = wcd9xxx_cfg_slim_sch_tx(core, &dai->wcd9xxx_ch_list,
 					      dai->rate, dai->bit_width,
 					      &dai->grph);
+#ifdef CONFIG_SND_SOC_ES325
+		ret = es325_remote_cfg_slim_tx(w->shift);
+#endif	
 		break;
 	case SND_SOC_DAPM_POST_PMD:
+#ifdef CONFIG_SND_SOC_ES325
+		ret = es325_remote_close_slim_tx(w->shift);
+#endif
 		ret = wcd9xxx_close_slim_sch_tx(core, &dai->wcd9xxx_ch_list,
 						dai->grph);
 		ret = taiko_codec_enable_slim_chmask(dai, false);
@@ -6872,6 +7040,23 @@ static int taiko_codec_probe(struct snd_soc_codec *codec)
 					   WCD9XXX_BANDGAP_AUDIO_MODE);
 		WCD9XXX_BG_CLK_UNLOCK(&taiko->resmgr);
 	}
+#ifdef CONFIG_GN_Q_BSP_AUDIO_HEADSET_SUPPORT
+	ret = gpio_request(pdata->pa_gpio, "speaker_PA");
+       if (ret < 0) {
+		pr_err("%s: Failed to gpio_request speaker_PA\n",
+			       __func__);
+
+      }
+      ret = gpio_direction_output(pdata->pa_gpio, 1);
+      if (ret < 0) {
+		pr_err("%s: speaker_PA direction failed\n",
+			       __func__);
+      }
+	gpio_set_value(pdata->pa_gpio, 0);
+#endif
+#ifdef CONFIG_SND_SOC_ES325
+	es325_remote_add_codec_controls(codec);
+#endif
 
 	ptr = kmalloc((sizeof(taiko_rx_chs) +
 		       sizeof(taiko_tx_chs)), GFP_KERNEL);
