@@ -121,14 +121,20 @@ static struct wcd9xxx_mbhc_config mbhc_cfg = {
 	.mclk_rate = TAIKO_EXT_CLK_RATE,
 	.gpio = 0,
 	.gpio_irq = 0,
-	.gpio_level_insert = 1,
+	.gpio_level_insert = 0,
 	.detect_extn_cable = true,
-	.micbias_enable_flags = 1 << MBHC_MICBIAS_ENABLE_THRESHOLD_HEADSET,
+	.micbias_enable_flags = 1 << MBHC_MICBIAS_ENABLE_THRESHOLD_HEADSET | 1 << MBHC_MICBIAS_ENABLE_REGULAR_HEADSET,
 	.insert_detect = true,
 	.swap_gnd_mic = NULL,
-	.cs_enable_flags = (1 << MBHC_CS_ENABLE_POLLING |
-			    1 << MBHC_CS_ENABLE_INSERTION |
-			    1 << MBHC_CS_ENABLE_REMOVAL),
+
+#if 0
+			.cs_enable_flags = (1 << MBHC_CS_ENABLE_POLLING |
+						1 << MBHC_CS_ENABLE_INSERTION |
+						1 << MBHC_CS_ENABLE_REMOVAL),
+#else
+			.cs_enable_flags=0,
+#endif
+
 	.do_recalibration = true,
 	.use_vddio_meas = true,
 };
@@ -452,6 +458,7 @@ static void msm8974_fluid_ext_us_amp_off(u32 spk)
 		pr_err("%s: ext_ult_lo_amp_gpio isn't configured\n", __func__);
 	} else if (spk & (LO_1_SPK_AMP | LO_3_SPK_AMP)) {
 		pr_debug("%s LO1 and LO3. spk = 0x%x", __func__, spk);
+		msm8974_ext_spk_pamp &= ~spk;
 		if (!msm8974_ext_spk_pamp) {
 			pr_debug("%s: Turn off US amp. spk = 0x%x\n",
 				 __func__, spk);
@@ -1699,27 +1706,28 @@ void *def_taiko_mbhc_cal(void)
 	S(c[0], 62);
 	S(c[1], 124);
 	S(nc, 1);
-	S(n_meas, 3);
+	S(n_meas, 2);
+
 	S(mbhc_nsc, 11);
-	S(n_btn_meas, 1);
-	S(n_btn_con, 2);
+	S(n_btn_meas, 4);
+	S(n_btn_con, 5);
 	S(num_btn, WCD9XXX_MBHC_DEF_BUTTONS);
-	S(v_btn_press_delta_sta, 100);
-	S(v_btn_press_delta_cic, 50);
+	S(v_btn_press_delta_sta, -800);
+	S(v_btn_press_delta_cic, 0);
 #undef S
 	btn_cfg = WCD9XXX_MBHC_CAL_BTN_DET_PTR(taiko_cal);
 	btn_low = wcd9xxx_mbhc_cal_btn_det_mp(btn_cfg, MBHC_BTN_DET_V_BTN_LOW);
 	btn_high = wcd9xxx_mbhc_cal_btn_det_mp(btn_cfg,
 					       MBHC_BTN_DET_V_BTN_HIGH);
-	btn_low[0] = -50;
-	btn_high[0] = 20;
-	btn_low[1] = 21;
-	btn_high[1] = 61;
-	btn_low[2] = 62;
-	btn_high[2] = 104;
-	btn_low[3] = 105;
-	btn_high[3] = 148;
-	btn_low[4] = 149;
+	btn_low[0] = -1500;
+    btn_high[0] = 92;
+	btn_low[1] = 93;
+    btn_high[1] = 95;
+	btn_low[2] = 96;
+	btn_high[2] = 97;
+	btn_low[3] = 98;
+	btn_high[3] = 187;
+	btn_low[4] = 188;
 	btn_high[4] = 189;
 	btn_low[5] = 190;
 	btn_high[5] = 228;
