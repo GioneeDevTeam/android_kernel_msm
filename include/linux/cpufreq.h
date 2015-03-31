@@ -297,6 +297,11 @@ __ATTR(_name, _perm, show_##_name, NULL)
 static struct freq_attr _name =			\
 __ATTR(_name, 0644, show_##_name, store_##_name)
 
+#if defined(CONFIG_GN_Q_BSP_CPU_WR_HOTPLUG_DISABLED_SUPPORT)
+#define cpufreq_freq_attr_rw_usr(_name)		\
+static struct freq_attr _name =			\
+__ATTR(_name, 0666, show_##_name, store_##_name)
+#endif
 struct global_attr {
 	struct attribute attr;
 	ssize_t (*show)(struct kobject *kobj,
