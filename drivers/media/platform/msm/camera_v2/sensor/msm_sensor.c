@@ -27,6 +27,7 @@
 #define CDBG(fmt, args...) do { } while (0)
 #endif
 
+int32_t CamState = 0; 
 static int32_t msm_sensor_enable_i2c_mux(struct msm_camera_i2c_conf *i2c_conf)
 {
 	struct v4l2_subdev *i2c_mux_sd =
@@ -955,12 +956,17 @@ static struct msm_cam_clk_info cam_8610_clk_info[] = {
 	[SENSOR_CAM_MCLK] = {"cam_src_clk", 24000000},
 	[SENSOR_CAM_CLK] = {"cam_clk", 0},
 };
-
+#ifdef CONFIG_GN_CAMERA_24M_MCLOCK_SUPPORT
 static struct msm_cam_clk_info cam_8974_clk_info[] = {
 	[SENSOR_CAM_MCLK] = {"cam_src_clk", 24000000},
 	[SENSOR_CAM_CLK] = {"cam_clk", 0},
 };
-
+#else
+static struct msm_cam_clk_info cam_8974_clk_info[] = {
+	[SENSOR_CAM_MCLK] = {"cam_src_clk", 19200000},
+	[SENSOR_CAM_CLK] = {"cam_clk", 0},
+};
+#endif
 int32_t msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 {
 	int32_t rc = 0, index = 0;
@@ -1220,6 +1226,28 @@ int32_t msm_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
 {
 	int32_t rc = 0;
 	uint16_t chipid = 0;
+#ifdef CONFIG_GN_CAMERA_SUPPORT
+    int i=0;
+    for(i=0;i<=5;i++)
+    {
+        rc = s_ctrl->sensor_i2c_client->i2c_func_tbl->i2c_read(
+        s_ctrl->sensor_i2c_client,
+        s_ctrl->sensordata->slave_info->sensor_id_reg_addr,
+        &chipid, MSM_CAMERA_I2C_WORD_DATA);
+        if (rc < 0) {
+        pr_err("%s: %s: read id failed i=%d \n", __func__,
+        s_ctrl->sensordata->sensor_name,i);
+    }else{
+       break;
+    }
+
+    }
+ 	if (rc < 0) {
+	     pr_err("%s: %s: read id failed for 5 times\n", __func__,
+		   	s_ctrl->sensordata->sensor_name);
+	     return rc;
+	  }    
+#else
 	rc = s_ctrl->sensor_i2c_client->i2c_func_tbl->i2c_read(
 			s_ctrl->sensor_i2c_client,
 			s_ctrl->sensordata->slave_info->sensor_id_reg_addr,
@@ -1229,6 +1257,7 @@ int32_t msm_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
 			s_ctrl->sensordata->sensor_name);
 		return rc;
 	}
+#endif
 
 	CDBG("%s: read id: %x expected id %x:\n", __func__, chipid,
 		s_ctrl->sensordata->slave_info->sensor_id);
@@ -1643,6 +1672,7 @@ int32_t msm_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 				break;
 			}
 			s_ctrl->sensor_state = MSM_SENSOR_POWER_UP;
+			CamState = 1; 
 			pr_err("%s:%d sensor state %d\n", __func__, __LINE__,
 				s_ctrl->sensor_state);
 		} else {
@@ -1671,13 +1701,28 @@ int32_t msm_sensor_config(struct msm_sensor_ctrl_t *s_ctrl,
 				break;
 			}
 			s_ctrl->sensor_state = MSM_SENSOR_POWER_DOWN;
+			CamState = 0; 
 			pr_err("%s:%d sensor state %d\n", __func__, __LINE__,
 				s_ctrl->sensor_state);
 		} else {
 			rc = -EFAULT;
 		}
 		break;
-
+    case CFG_SET_INIT_SETTING:
+         if(s_ctrl->gn_otp_func_tbl && s_ctrl->gn_otp_func_tbl->gn_sensor_otp_support) {
+		 	for (i = 0; i < 3; i ++) {
+				rc = s_ctrl->gn_otp_func_tbl->gn_sensor_otp_support(s_ctrl);
+				if (rc != 1) {
+					pr_err("%s: %s: sensor otp support failed [%d]\n", __func__,
+							s_ctrl->sensordata->sensor_name, i);
+				} else {
+					printk("%s: %s: sensor otp support success\n", __func__,
+							s_ctrl->sensordata->sensor_name);
+					break;
+				}
+			}
+		}
+        break;
 	case CFG_SET_STOP_STREAM_SETTING: {
 		struct msm_camera_i2c_reg_setting *stop_setting =
 			&s_ctrl->stop_setting;
