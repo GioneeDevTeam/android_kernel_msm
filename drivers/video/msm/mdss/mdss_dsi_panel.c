@@ -23,7 +23,10 @@
 #include <linux/err.h>
 
 #include "mdss_dsi.h"
-
+#if defined(CONFIG_GN_DEVICE_TYPE_CHECK)
+#include <linux/gn_device_check.h>
+extern int gn_set_device_info(struct gn_device_info gn_dev_info);
+#endif
 #define DT_CMD_HDR 6
 
 DEFINE_LED_TRIGGER(bl_led_trigger);
@@ -157,8 +160,10 @@ void mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 {
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
 	struct mdss_panel_info *pinfo = NULL;
+#if defined(CONFIG_GN_Q_BSP_LCD_RESET_SUPPORT)
+#else
 	int i;
-
+#endif
 	if (pdata == NULL) {
 		pr_err("%s: Invalid input data\n", __func__);
 		return;
@@ -182,15 +187,31 @@ void mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 	pinfo = &(ctrl_pdata->panel_data.panel_info);
 
 	if (enable) {
+#if defined(CONFIG_GN_Q_BSP_LCD_RESET_SUPPORT)
+		gpio_set_value((ctrl_pdata->rst_gpio), 0);
+		mdelay(3);
+#endif
 		if (gpio_is_valid(ctrl_pdata->disp_en_gpio))
 			gpio_set_value((ctrl_pdata->disp_en_gpio), 1);
+#if defined(CONFIG_GN_Q_BSP_LCD_TPS65132_SUPPORT)
+		set_vol_tps65132_positive();
+		mdelay(1);
+		if (gpio_is_valid(ctrl_pdata->tps_en_gpio))
+		{
+			gpio_set_value((ctrl_pdata->tps_en_gpio), 1);
+			set_vol_tps65132_nagetive();
+		}
+#endif
 
+#if defined(CONFIG_GN_Q_BSP_LCD_RESET_SUPPORT)
+#else
 		for (i = 0; i < pdata->panel_info.rst_seq_len; ++i) {
 			gpio_set_value((ctrl_pdata->rst_gpio),
 				pdata->panel_info.rst_seq[i]);
 			if (pdata->panel_info.rst_seq[++i])
 				usleep(pdata->panel_info.rst_seq[i] * 1000);
 		}
+#endif
 
 		if (gpio_is_valid(ctrl_pdata->mode_gpio)) {
 			if (pinfo->mode_gpio_state == MODE_GPIO_HIGH)
@@ -204,12 +225,31 @@ void mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 			ctrl_pdata->ctrl_state &= ~CTRL_STATE_PANEL_INIT;
 			pr_debug("%s: Reset panel done\n", __func__);
 		}
+#if defined(CONFIG_GN_Q_BSP_LCD_RESET_SUPPORT)
+		mdelay(1);
+		gpio_set_value((ctrl_pdata->rst_gpio), 1);
+		mdelay(3);
+#endif
 	} else {
 		gpio_set_value((ctrl_pdata->rst_gpio), 0);
+		
+#if defined(CONFIG_GN_Q_BSP_LCD_TPS65132_SUPPORT)
+		mdelay(10); // add for IC request
+		if (gpio_is_valid(ctrl_pdata->tps_en_gpio))
+			gpio_set_value((ctrl_pdata->tps_en_gpio), 0);
+		mdelay(1);
+#endif
 		if (gpio_is_valid(ctrl_pdata->disp_en_gpio))
 			gpio_set_value((ctrl_pdata->disp_en_gpio), 0);
 	}
 }
+
+#if defined(CONFIG_GN_Q_BSP_BACKLIGHT_LM3630_SUPPORT)
+void mdss_dsi_panel_lm3630(unsigned int bl_level)
+{
+	set_backlight_lm3630(bl_level);
+}
+#endif
 
 static char caset[] = {0x2a, 0x00, 0x00, 0x03, 0x00};	/* DTYPE_DCS_LWRITE */
 static char paset[] = {0x2b, 0x00, 0x00, 0x05, 0x00};	/* DTYPE_DCS_LWRITE */
@@ -298,6 +338,11 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 	case BL_DCS_CMD:
 		mdss_dsi_panel_bklt_dcs(ctrl_pdata, bl_level);
 		break;
+#if defined(CONFIG_GN_Q_BSP_BACKLIGHT_LM3630_SUPPORT)
+	case BL_LM3630:
+		mdss_dsi_panel_lm3630(bl_level);
+		break;
+#endif
 	default:
 		pr_err("%s: Unknown bl_ctrl configuration\n",
 			__func__);
@@ -771,6 +816,11 @@ static int mdss_panel_parse_dt(struct device_node *np,
 		} else if (!strncmp(data, "bl_ctrl_dcs", 11)) {
 			ctrl_pdata->bklt_ctrl = BL_DCS_CMD;
 		}
+#if defined(CONFIG_GN_Q_BSP_BACKLIGHT_LM3630_SUPPORT)
+	else if (!strncmp(data, "bl_ctrl_lm3630", 14)) {
+			ctrl_pdata->bklt_ctrl = BL_LM3630;
+	}
+#endif
 	}
 	rc = of_property_read_u32(np, "qcom,mdss-brightness-max-level", &tmp);
 	pinfo->brightness_max = (!rc ? tmp : MDSS_MAX_BL_BRIGHTNESS);
@@ -925,13 +975,61 @@ int mdss_dsi_panel_init(struct device_node *node,
 	static const char *panel_name;
 	bool cont_splash_enabled;
 	bool partial_update_enabled;
-
+#if defined(CONFIG_GN_DEVICE_TYPE_CHECK) 
+	static const char *device_panel_name;
+	struct gn_device_info gn_mydev_info;
+	gn_mydev_info.gn_dev_type = GN_DEVICE_TYPE_LCD;
+#endif
 	if (!node) {
 		pr_err("%s: no panel node\n", __func__);
 		return -ENODEV;
 	}
 
 	pr_debug("%s:%d\n", __func__, __LINE__);
+	#ifdef CONFIG_GN_Q_BSP_LCD_COMPATIBILITY_SUPPORT
+	{
+		int lcd_adc0_gpio, lcd_adc1_gpio;
+
+		lcd_adc0_gpio = of_get_named_gpio(node, "qcom,gn_lcd_adc0_gpio", 0);
+		lcd_adc1_gpio = of_get_named_gpio(node, "qcom,gn_lcd_adc1_gpio", 0);
+
+		if (!gpio_is_valid(lcd_adc0_gpio)) {
+			pr_err("%s:%d, compatibility gpio not specified\n",__func__, __LINE__);
+		}
+		else {
+			rc = gpio_request(lcd_adc0_gpio, "lcd_compatibility");
+			if (rc) {
+				pr_err("request lcd compatibility gpio failed, rc=%d\n",rc);
+				gpio_free(lcd_adc0_gpio);
+				return -ENODEV;
+			}
+		}
+		if (!gpio_is_valid(lcd_adc1_gpio)) {
+			pr_err("%s:%d, compatibility gpio not specified\n",__func__, __LINE__);
+		}
+		else {
+			rc = gpio_request(lcd_adc1_gpio, "lcd_compatibility");
+			if (rc) {
+				pr_err("request lcd compatibility gpio failed, rc=%d\n",rc);
+				gpio_free(lcd_adc1_gpio);
+				return -ENODEV;
+			}
+		}
+		rc = gpio_tlmm_config(GPIO_CFG(lcd_adc0_gpio, 1,GPIO_CFG_INPUT,GPIO_CFG_PULL_DOWN,GPIO_CFG_2MA),GPIO_CFG_ENABLE);
+		if (rc) {
+			pr_err("%s: unable to config tlmm = %d\n",__func__, lcd_adc0_gpio);
+			gpio_free(lcd_adc0_gpio);
+			return -ENODEV;
+		}											
+		rc = gpio_tlmm_config(GPIO_CFG(lcd_adc1_gpio, 1,GPIO_CFG_INPUT,GPIO_CFG_PULL_DOWN,GPIO_CFG_2MA),GPIO_CFG_ENABLE);
+		if (rc) {
+			pr_err("%s: unable to config tlmm = %d\n",__func__, lcd_adc1_gpio);
+			gpio_free(lcd_adc1_gpio);
+			return -ENODEV;
+		}	
+
+	}
+	#endif
 	panel_name = of_get_property(node, "qcom,mdss-dsi-panel-name", NULL);
 	if (!panel_name)
 		pr_info("%s:%d, Panel name not specified\n",
@@ -939,6 +1037,18 @@ int mdss_dsi_panel_init(struct device_node *node,
 	else
 		pr_info("%s: Panel Name = %s\n", __func__, panel_name);
 
+#if defined(CONFIG_GN_DEVICE_TYPE_CHECK) 
+	if(strstr(panel_name, "tianma"))
+		device_panel_name = "tianma_r63421";
+	else if(strstr(panel_name, "jdi"))
+		device_panel_name = "jdi_r63417";
+	else if(strstr(panel_name, "truly"))
+		device_panel_name = "truly_r63417";
+	else 
+		device_panel_name = "unknown lcd";
+	strcpy(gn_mydev_info.name, device_panel_name);
+	gn_set_device_info(gn_mydev_info);
+#endif
 	rc = mdss_panel_parse_dt(node, ctrl_pdata);
 	if (rc) {
 		pr_err("%s:%d panel dt parse failed\n", __func__, __LINE__);

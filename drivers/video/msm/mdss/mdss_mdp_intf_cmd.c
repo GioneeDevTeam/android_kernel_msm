@@ -120,9 +120,14 @@ static int mdss_mdp_cmd_tearcheck_cfg(struct mdss_mdp_mixer *mixer,
 	cfg |= ctx->vclk_line;
 
 	mdss_mdp_pingpong_write(mixer, MDSS_MDP_REG_PP_SYNC_CONFIG_VSYNC, cfg);
+#ifdef CONFIG_GN_Q_BSP_LCD_TE_ANALOG_SUPPORT
+	mdss_mdp_pingpong_write(mixer, MDSS_MDP_REG_PP_SYNC_CONFIG_HEIGHT,
+				ctx->height + 20); /* set to verh height */
+#else
 	mdss_mdp_pingpong_write(mixer, MDSS_MDP_REG_PP_SYNC_CONFIG_HEIGHT,
 				0xfff0); /* set to verh height */
-
+#endif
+			  
 	mdss_mdp_pingpong_write(mixer, MDSS_MDP_REG_PP_VSYNC_INIT_VAL,
 						ctx->height);
 
