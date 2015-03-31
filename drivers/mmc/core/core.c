@@ -1232,8 +1232,11 @@ void mmc_set_data_timeout(struct mmc_data *data, const struct mmc_card *card)
 	/*
 	 * SD cards use a 100 multiplier rather than 10
 	 */
+#if defined(CONFIG_GN_Q_BSP_ENFORCE_EMMC_TIMEOUT_SUPPORT)
+	mult = mmc_card_sd(card) ? 100 : 50;
+#else
 	mult = mmc_card_sd(card) ? 100 : 10;
-
+#endif
 	/*
 	 * Scale up the multiplier (and therefore the timeout) by
 	 * the r2w factor for writes.
@@ -1255,6 +1258,20 @@ void mmc_set_data_timeout(struct mmc_data *data, const struct mmc_card *card)
 			timeout_us += data->timeout_clks * 1000 /
 				(mmc_host_clk_rate(card->host) / 1000);
 
+#if defined(CONFIG_GN_Q_BSP_ENFORCE_EMMC_TIMEOUT_SUPPORT)
+		if (data->flags & MMC_DATA_WRITE)
+			/*
+			 * The MMC spec "It is strongly recommended
+			 * for hosts to implement more than 500ms
+			 * timeout value even if the card indicates
+			 * the 250ms maximum busy length."  Even the
+			 * previous value of 300ms is known to be
+			 * insufficient for some cards.
+			 */
+			limit_us = 5000000;
+		else
+			limit_us = 300000;
+#else
 		if (data->flags & MMC_DATA_WRITE)
 			/*
 			 * The MMC spec "It is strongly recommended
@@ -1267,7 +1284,7 @@ void mmc_set_data_timeout(struct mmc_data *data, const struct mmc_card *card)
 			limit_us = 3000000;
 		else
 			limit_us = 100000;
-
+#endif
 		/*
 		 * SDHC cards always use these fixed values.
 		 */

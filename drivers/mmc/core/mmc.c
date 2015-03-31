@@ -274,11 +274,22 @@ static void mmc_select_card_type(struct mmc_card *card)
 			card_type & EXT_CSD_CARD_TYPE_SDR_1_2V))
 		hs_max_dtr = MMC_HS200_MAX_DTR;
 
+#if defined(CONFIG_GN_Q_BSP_LK_DISABLE_EMMC_HS400)
+	if ((caps2 & MMC_CAP2_HS400_1_8V &&
+			card_type & EXT_CSD_CARD_TYPE_HS400_1_8V) ||
+	    (caps2 & MMC_CAP2_HS400_1_2V &&
+			card_type & EXT_CSD_CARD_TYPE_HS400_1_2V)){
+        hs_max_dtr = MMC_HS200_MAX_DTR;
+        card_type &= ~EXT_CSD_CARD_TYPE_HS400_1_8V;
+        card_type &= ~EXT_CSD_CARD_TYPE_HS400_1_2V;
+    }
+#else
 	if ((caps2 & MMC_CAP2_HS400_1_8V &&
 			card_type & EXT_CSD_CARD_TYPE_HS400_1_8V) ||
 	    (caps2 & MMC_CAP2_HS400_1_2V &&
 			card_type & EXT_CSD_CARD_TYPE_HS400_1_2V))
 		hs_max_dtr = MMC_HS400_MAX_DTR;
+#endif
 
 	card->ext_csd.hs_max_dtr = hs_max_dtr;
 	card->ext_csd.card_type = card_type;
