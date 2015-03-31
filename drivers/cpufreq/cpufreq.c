@@ -635,7 +635,11 @@ cpufreq_freq_attr_ro(related_cpus);
 cpufreq_freq_attr_ro(affected_cpus);
 cpufreq_freq_attr_ro(cpu_utilization);
 cpufreq_freq_attr_rw(scaling_min_freq);
+#if defined(CONFIG_GN_Q_BSP_CPU_WR_HOTPLUG_DISABLED_SUPPORT)
+cpufreq_freq_attr_rw_usr(scaling_max_freq);
+#else
 cpufreq_freq_attr_rw(scaling_max_freq);
+#endif
 cpufreq_freq_attr_rw(scaling_governor);
 cpufreq_freq_attr_rw(scaling_setspeed);
 
