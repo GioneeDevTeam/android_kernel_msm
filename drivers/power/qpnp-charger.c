@@ -2080,6 +2080,9 @@ static enum power_supply_property msm_batt_power_props[] = {
 	POWER_SUPPLY_PROP_SYSTEM_TEMP_LEVEL,
 	POWER_SUPPLY_PROP_CYCLE_COUNT,
 	POWER_SUPPLY_PROP_VOLTAGE_OCV,
+#if defined(CONFIG_GN_Q_BSP_CHARGE_VOLTAGE_SUPPORT)
+	POWER_SUPPLY_PROP_CHARGE_VOLTAGE_NOW,
+#endif
 };
 
 static char *pm_power_supplied_to[] = {
@@ -2145,6 +2148,27 @@ qpnp_aicl_check_work(struct work_struct *work)
 	}
 	chip->charger_monitor_checked = true;
 }
+
+#if defined(CONFIG_GN_Q_BSP_CHARGE_VOLTAGE_SUPPORT)
+static int
+get_prop_battery_charge_voltage_now(struct qpnp_chg_chip *chip)
+{
+	int rc = 0;
+	struct qpnp_vadc_result results;
+
+	if (chip->revision == 0 && chip->type == SMBB) {
+		pr_err("vbat reading not supported for 1.0 rc=%d\n", rc);
+		return 0;
+	} else {
+		rc = qpnp_vadc_read(chip->vadc_dev, USBIN, &results);
+		if (rc) {
+			pr_err("Unable to read charge voltage rc=%d\n", rc);
+			return 0;
+		}
+		return results.physical;
+	}
+}
+#endif
 
 static int
 get_prop_battery_voltage_now(struct qpnp_chg_chip *chip)
@@ -2337,6 +2361,9 @@ get_prop_capacity(struct qpnp_chg_chip *chip)
 {
 	union power_supply_propval ret = {0,};
 	int battery_status, bms_status, soc, charger_in;
+#if defined(CONFIG_GN_Q_BSP_OPTIMIZE_SOC_SUPPORT)
+	static int last_soc = 50;
+#endif
 
 	if (chip->fake_battery_soc >= 0)
 		return chip->fake_battery_soc;
@@ -2374,6 +2401,21 @@ get_prop_capacity(struct qpnp_chg_chip *chip)
 				&& !qpnp_chg_is_usb_chg_plugged_in(chip))
 				pr_warn_ratelimited("Battery 0, CHG absent\n");
 		}
+
+#if defined(CONFIG_GN_Q_BSP_OPTIMIZE_SOC_SUPPORT)
+		if(charger_in) {
+			if(soc == 100)
+			{
+				printk(KERN_INFO "capacity = 100,when charger in, soc can't drop\n");
+				last_soc = 100;
+			}	
+
+			if((last_soc == 100) && (soc >= 95))
+				soc = 100;
+		} else {
+			last_soc = 50;
+		}
+#endif
 		return soc;
 	} else {
 		pr_debug("No BMS supply registered return 50\n");
@@ -2532,6 +2574,11 @@ qpnp_batt_power_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
 		val->intval = get_prop_battery_voltage_now(chip);
 		break;
+#if defined(CONFIG_GN_Q_BSP_CHARGE_VOLTAGE_SUPPORT)
+	case POWER_SUPPLY_PROP_CHARGE_VOLTAGE_NOW:
+		val->intval = get_prop_battery_charge_voltage_now(chip);
+		break;
+#endif
 	case POWER_SUPPLY_PROP_VOLTAGE_OCV:
 		val->intval = chip->insertion_ocv_uv;
 		break;
@@ -2614,8 +2661,12 @@ qpnp_chg_bat_if_configure_btc(struct qpnp_chg_chip *chip)
 		mask |= BTC_COLD;
 	}
 
-	if (chip->btc_disabled)
+	if (chip->btc_disabled){
 		mask |= BTC_CONFIG_ENABLED;
+#if defined(CONFIG_GN_Q_BSP_BTC_CONFIG_SUPPORT)
+		btc_cfg |= BTC_CONFIG_ENABLED;
+#endif
+	}
 
 	return qpnp_chg_masked_write(chip,
 			chip->bat_if_base + BAT_IF_BTC_CTRL,
@@ -4912,6 +4963,11 @@ qpnp_charger_probe(struct spmi_device *spmi)
 		case SMBCL_USB_CHGPTH_SUBTYPE:
 			chip->usb_chgpth_base = resource->start;
 			rc = qpnp_chg_hwinit(chip, subtype, spmi_resource);
+			
+			#if defined(CONFIG_GN_Q_BSP_OVP_9P5V_SUPPORT)
+			qpnp_chg_masked_write(chip, chip->usb_chgpth_base + USB_OVP_CTL, 0x30, 0x0, 1); 
+			#endif
+			
 			if (rc) {
 				if (rc != -EPROBE_DEFER)
 					pr_err("Failed to init subtype 0x%x rc=%d\n",
@@ -4922,6 +4978,11 @@ qpnp_charger_probe(struct spmi_device *spmi)
 		case SMBB_DC_CHGPTH_SUBTYPE:
 			chip->dc_chgpth_base = resource->start;
 			rc = qpnp_chg_hwinit(chip, subtype, spmi_resource);
+
+			#if defined(CONFIG_GN_Q_BSP_OVP_9P5V_SUPPORT)
+			qpnp_chg_masked_write(chip, chip->dc_chgpth_base + USB_OVP_CTL, 0x30, 0x0, 1); 
+			#endif
+		
 			if (rc) {
 				pr_err("Failed to init subtype 0x%x rc=%d\n",
 						subtype, rc);
@@ -5138,12 +5199,15 @@ static int qpnp_chg_resume(struct device *dev)
 	int rc = 0;
 
 	if (chip->bat_if_base) {
+#if defined(CONFIG_GN_Q_BSP_PMIC_DISABLE_LOW_TM_INTERRUPTS_SUPPORT)
+#else
 		rc = qpnp_chg_masked_write(chip,
 			chip->bat_if_base + BAT_IF_VREF_BAT_THM_CTRL,
 			VREF_BATT_THERM_FORCE_ON,
 			VREF_BATT_THERM_FORCE_ON, 1);
 		if (rc)
 			pr_debug("failed to force on VREF_BAT_THM rc=%d\n", rc);
+#endif
 	}
 
 	return rc;
@@ -5155,12 +5219,18 @@ static int qpnp_chg_suspend(struct device *dev)
 	int rc = 0;
 
 	if (chip->bat_if_base) {
+#if defined(CONFIG_GN_Q_BSP_PMIC_DISABLE_LOW_TM_INTERRUPTS_SUPPORT)
+#else
 		rc = qpnp_chg_masked_write(chip,
 			chip->bat_if_base + BAT_IF_VREF_BAT_THM_CTRL,
 			VREF_BATT_THERM_FORCE_ON,
 			VREF_BAT_THM_ENABLED_FSM, 1);
 		if (rc)
 			pr_debug("failed to set FSM VREF_BAT_THM rc=%d\n", rc);
+#endif
+		#if defined(CONFIG_GN_Q_BSP_PM8941_CHARGER_SUPPORT)
+		qpnp_chg_masked_write(chip, 0x12df, 0xFF, 0x00, 1);
+		#endif
 	}
 
 	return rc;

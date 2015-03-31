@@ -185,6 +185,9 @@ static struct device_attribute power_supply_attrs[] = {
 	POWER_SUPPLY_ATTR(scope),
 	POWER_SUPPLY_ATTR(system_temp_level),
 	POWER_SUPPLY_ATTR(resistance),
+#if defined(CONFIG_GN_Q_BSP_CHARGE_VOLTAGE_SUPPORT)
+	POWER_SUPPLY_ATTR(charge_voltage_now),
+#endif
 	/* Properties of type `const char *' */
 	POWER_SUPPLY_ATTR(model_name),
 	POWER_SUPPLY_ATTR(manufacturer),
