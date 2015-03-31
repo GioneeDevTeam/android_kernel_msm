@@ -1422,7 +1422,17 @@ static struct wcd9xxx_pdata *wcd9xxx_populate_dt_pdata(struct device *dev)
 	ret = wcd9xxx_dt_parse_micbias_info(dev, &pdata->micbias);
 	if (ret)
 		goto err;
-
+#ifdef CONFIG_GN_Q_BSP_AUDIO_HEADSET_SUPPORT
+	pdata->pa_gpio = of_get_named_gpio(dev->of_node,
+				"qcom,cdc-pa-gpio", 0);
+	if (pdata->pa_gpio < 0) {
+		dev_err(dev, "Looking up %s property in node %s failed %d\n",
+			"qcom, cdc-pa-gpio", dev->of_node->full_name,
+			pdata->pa_gpio);
+		goto err;
+	}
+	dev_dbg(dev, "%s: pa gpio %d", __func__, pdata->pa_gpio);
+#endif
 	pdata->reset_gpio = of_get_named_gpio(dev->of_node,
 				"qcom,cdc-reset-gpio", 0);
 	if (pdata->reset_gpio < 0) {
