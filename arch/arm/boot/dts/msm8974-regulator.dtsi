@@ -27,7 +27,7 @@
 		qcom,pull-down-enable = <1>;
 		interrupts = <0x1 0x83 0x2>;
 		interrupt-names = "ocp";
-		qcom,ocp-enable = <1>;
+		qcom,ocp-enable = <0>;
 		qcom,ocp-max-retries = <10>;
 		qcom,ocp-retry-delay = <30>;
 		qcom,soft-start-enable = <1>;

@@ -705,6 +705,7 @@
 				      30>;
 
 			qcom,cdc-reset-gpio = <&msmgpio 63 0>;
+			qcom,cdc-pa-gpio = <&pm8941_gpios 6 0>; 
 
 			cdc-vdd-buck-supply = <&pm8941_s2>;
 			qcom,cdc-vdd-buck-voltage = <2150000 2150000>;
@@ -748,12 +749,57 @@
 			qcom,cdc-micbias-cfilt3-mv = <1800>;
 			qcom,cdc-micbias1-cfilt-sel = <0x0>;
 			qcom,cdc-micbias2-cfilt-sel = <0x1>;
-			qcom,cdc-micbias3-cfilt-sel = <0x2>;
-			qcom,cdc-micbias4-cfilt-sel = <0x2>;
+			qcom,cdc-micbias3-cfilt-sel = <0x0>; 
+			qcom,cdc-micbias4-cfilt-sel = <0x0>; 
 			qcom,cdc-mclk-clk-rate = <9600000>;
 			qcom,cdc-slim-ifd = "taiko-slim-ifd";
 			qcom,cdc-slim-ifd-elemental-addr = [00 00 A0 00 17 02];
-			qcom,cdc-dmic-sample-rate = <4800000>;
+			qcom,cdc-dmic-sample-rate = <2400000>; 
+		};
+		es325_codec_gen0 {
+			compatible = "adnc,es325-codec-gen0";
+			elemental-addr = [00 01 02 00 BE 02];
+
+			adnc,es325-codec-gen0 = "es325-codec-gen0";
+			adnc,es325-codec-gen0-eaddr = [00 01 02 00 BE 02];
+
+			adnc,reset-gpio  = <&msmgpio 47 0>; /* DEFINED BY CUSTOMER */
+			adnc,wakeup-gpio = <&msmgpio 53 0>; /* DEFINED BY CUSTOMER */
+			adnc,power-gpio  = <&msmgpio 57 0>;
+
+			adnc,es325-mclk-gpios = <&pm8941_gpios 16 0>;	/* DEFINED BY audience */
+			es325-mclk-clk = <&pm8941_clkdiv2>;
+			adnc,es325-mclk-clk-freq = <19200000>;
+
+			es325_vdig-supply = <&pm8941_l3>;
+			adnc,es325-vreg-name = "es325_vdig";
+			adnc,es325-vreg-type = <0>;
+			adnc,es325-vreg-min-voltage = <1225000>;
+			adnc,es325-vreg-max-voltage = <1225000>;
+			adnc,es325-vreg-op-mode = <105000>;			
+		};
+
+		es325_codec_intf {
+			compatible = "adnc,es325-codec-intf";
+			elemental-addr = [00 00 02 00 BE 02];
+			
+			adnc,es325-codec-intf = "es325-codec-intf";
+			adnc,es325-codec-intf-eaddr = [00 01 02 00 BE 02];
+
+			adnc,reset-gpio  = <&msmgpio 47 0>; /* DEFINED BY CUSTOMER */
+			adnc,wakeup-gpio = <&msmgpio 53 0>; /* DEFINED BY CUSTOMER */		
+			adnc,power-gpio  = <&msmgpio 57 0>;
+
+			adnc,es325-mclk-gpios = <&pm8941_gpios 16 0>;	/* DEFINED BY audience */
+			es325-mclk-clk = <&pm8941_clkdiv2>;
+			adnc,es325-mclk-clk-freq = <19200000>;
+
+			es325_vdig-supply = <&pm8941_l3>;
+			adnc,es325-vreg-name = "es325_vdig";
+			adnc,es325-vreg-type = <0>;
+			adnc,es325-vreg-min-voltage = <1225000>;
+			adnc,es325-vreg-max-voltage = <1225000>;
+			adnc,es325-vreg-op-mode = <105000>;
 		};
 	};
 
@@ -866,6 +912,19 @@
 		qcom,master-id = <86>;
 		qcom,scl-gpio = <&msmgpio 7 0>;
 		qcom,sda-gpio = <&msmgpio 6 0>;
+	};
+	i2c_3: i2c@f9928000 {
+		cell-index = <3>;
+		compatible = "qcom,i2c-qup";
+		reg = <0xf9928000 0x1000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg-names = "qup_phys_addr";
+		interrupts = <0 100 0>;
+		interrupt-names = "qup_err_intr";
+		qcom,i2c-bus-freq = <100000>;
+		qcom,i2c-src-freq = <19200000>;
+		qcom,master-id = <87>;
 	};
 
 	spi_0: spi@f9923000 { /* BLSP1 QUP1 */

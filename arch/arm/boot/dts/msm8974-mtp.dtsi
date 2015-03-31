@@ -12,6 +12,7 @@
 
 /include/ "msm8974-camera-sensor-mtp.dtsi"
 /include/ "msm8974-leds.dtsi"
+/include/ "msm8974-clock.dtsi"
 
 / {
 	aliases {
@@ -25,7 +26,8 @@
 	};
 
 	qcom,mdss_dsi@fd922800 {
-		qcom,dsi-pref-prim-pan = <&dsi_tosh_720_vid>;
+//		qcom,dsi-pref-prim-pan = <&dsi_jdi_r63417_1080_cmd>;
+		qcom,dsi-pref-prim-pan = <&dsi_truly_r63417_1080_cmd>;
 	};
 
 	qcom,mdss_mdp@fd900000 {
@@ -39,19 +41,30 @@
 
 	i2c@f9924000 {
 		synaptics@20 {
-			compatible = "synaptics,rmi4";
-			reg = <0x20>;
-			interrupt-parent = <&msmgpio>;
-			interrupts = <61 0x2008>;
-			vdd-supply = <&pm8941_l18>;
-			vcc_i2c-supply = <&pm8941_lvs1>;
-			synaptics,reset-gpio = <&msmgpio 60 0x00>;
-			synaptics,irq-gpio = <&msmgpio 61 0x2008>;
-			synaptics,display-coords = <0 0 1079 1919>;
-			synaptics,i2c-pull-up;
-			synaptics,power-down;
-			synaptics,disable-gpios;
-			synaptics,do-lockdown;
+                compatible = "synaptics,rmi4";
+                reg = <0x20>;
+                interrupt-parent = <&msmgpio>;
+                interrupts = <61 0x2>;
+                vdd-supply = <&pm8941_l22>;
+                vcc_i2c-supply = <&pm8941_lvs1>;
+                synaptics,reset-gpio = <&msmgpio 60 0x00>;
+                synaptics,irq-gpio = <&msmgpio 61 0x00>;
+                synaptics,en-gpio = <&msmgpio 85 0x00>;
+                synaptics,button-map = <139 102 158>;
+                synaptics,fw-image-name1 = "PR1555722-s3202_7953_OW_30303036.img";
+                synaptics,fw-image-name2 = "PR1555722-s3202_7953_OB_30303039.img";
+                synaptics,fw-image-name3 = "PR1555722-s3202_7953_OC_30303034.img";
+                synaptics,fw-image-name4 = "PR1555722-s3202_7953_TW_30303037.img";
+                synaptics,fw-image-name5 = "PR1555722-s3202_7953_TB_30303037.img";
+                synaptics,fw-image-name6 = "PR1555722-s3202_7953_TC_30303034.img";
+                synaptics,fw-image-name7 = "PR1555722-s3202_7953_TR_30303035.img";
+                synaptics,fw-image-name8 = "PR1555722-s3202_7953_TO_30303035.img";
+                synaptics,fw-image-name9 = "PR1555722-s3202_7953_TY_30303035.img";
+                synaptics,fw-image-name10 = "PR1555722-s3202_7953_TG_30303035.img";
+                synaptics,fw-image-name11 = "PR1555722-s3202_7953_XX_30303034.img";
+                synaptics,i2c-pull-up;
+                synaptics,reg-en;
+
 		};
 
 		atmel_mxt_ts@4a {
@@ -133,6 +146,22 @@
 		};
 	};
 
+	i2c@f9928000 {
+     	bcm2079x-i2c@77 {
+            compatible = "broadcom,bcm2079x";
+            reg = <0x77>;
+            #interrupt-parent = <&msmgpio>;
+            #interrupts = <61 0x8>;
+            vdd_ana-supply = <&pm8941_l18>;
+            vcc_i2c-supply = <&pm8941_lvs1>;
+            broadcom,vdd-ldo;
+            broadcom,i2c_pull_up;
+            broadcom,wake_gpio = <&msmgpio 55 0x00>;
+            broadcom,irq_gpio = <&msmgpio 59 0x00>;
+            broadcom,en_gpio = <&msmgpio 46 0x00>;
+        };
+	};
+	
 	gen-vkeys {
 		compatible = "qcom,gen-vkeys";
 		label = "atmel_mxt_ts";
@@ -153,6 +182,8 @@
 			imagis,chip-en;
 			imagis,need-pwm-clk;
 			imagis,ext-clk-en;
+			imagis,isa1200-mclk-gpios = <&pm8941_gpios 18 0>;
+			isa1200-mclk-clk = <&pm8941_clkdiv3>;
 			imagis,hap-en-gpio = <&msmgpio 86 0x00>;
 			imagis,max-timeout = <15000>;
 			imagis,pwm-div = <256>;
@@ -164,6 +195,21 @@
 				regulator-max-microamp = <9360>;
 			};
 		};
+                lm3630@36 {
+                	status = "ok";
+                        reg = <0x36>;
+                        compatible = "ti,lm3630";
+                        label = "lm3630";
+                        ti,enable_gpio = <&msmgpio 58 0x00>;
+                 };
+                tps65132@3e {
+                	status = "ok";
+                        reg = <0x3e>;
+                        compatible = "ti,tps65132";
+                        label = "tps65132";
+                        ti,enable_gpio = <&msmgpio 58 0x00>;
+                 };
+
 	};
 
 	gpio_keys {
@@ -382,6 +428,8 @@
 
 		/include/ "batterydata-palladium.dtsi"
 		/include/ "batterydata-mtp-3000mah.dtsi"
+		/include/ "batterydata-GBW8901-2500mah.dtsi"
+		/include/ "batterydata-GBW8901-SONY-2500mah.dtsi"
 	};
 };
 
@@ -397,7 +445,8 @@
 
 &pm8941_chg {
 	status = "ok";
-	qcom,charging-disabled;
+	qcom,charging-enabled;
+
 	qcom,battery-data = <&mtp_batterydata>;
 
 	qcom,chgr@1000 {
@@ -467,8 +516,12 @@
 	};
 
 	gpio@c500 { /* GPIO 6 */
-		qcom,mode = <0>;        /* QPNP_PIN_MODE_DIG_IN */
-		qcom,pull = <0>;        /* QPNP_PIN_PULL_UP_30  */
+		qcom,mode = <1>;		/* QPNP_PIN_MODE_DIG_OUT */
+		qcom,output-type = <0>;		/* QPNP_PIN_OUT_BUF_CMOS */
+		qcom,pull = <5>;		/* QPNP_PIN_PULL_NO */
+		qcom,vin-sel = <2>;		/* QPNP_PIN_VIN2 */
+		qcom,out-strength = <1>;	/* QPNP_PIN_OUT_STRENGTH_LOW */
+		qcom,src-sel = <0>;		/* QPNP_PIN_SEL_FUNC_CONSTANT */
 		qcom,master-en = <1>;
 	};
 
@@ -542,7 +595,7 @@
 		qcom,pull = <5>;
 		qcom,vin-sel = <2>;
 		qcom,out-strength = <3>;
-		qcom,src-sel = <3>;       /* QPNP_PIN_SEL_FUNC_2  */
+		qcom,src-sel = <2>;       
 		qcom,master-en = <1>;
 	};
 
@@ -550,6 +603,13 @@
 	};
 
 	gpio@d100 { /* GPIO 18 */
+		qcom,mode = <1>; 
+		qcom,output-type = <0>; 
+		qcom,pull = <5>; 
+		qcom,vin-sel = <2>; 
+		qcom,out-strength = <3>; 
+		qcom,src-sel = <2>; 
+		qcom,master-en = <1>;
 	};
 
 	gpio@d200 { /* GPIO 19 */
@@ -635,11 +695,16 @@
 		qcom,mode = <0>;        /* QPNP_PIN_MODE_DIG_IN */
 		qcom,pull = <4>;	/* QPNP_PIN_PULL_DN */
 		qcom,master-en = <1>;
+		qcom,vin-sel = <2>; /* add PM8941 S3 = 1.8 V */ 
 	};
 
 	gpio@e000 { /* GPIO 33 */
-		qcom,mode = <0>;        /* QPNP_PIN_MODE_DIG_IN */
-		qcom,pull = <4>;	/* QPNP_PIN_PULL_DN */
+		qcom,mode = <1>;		/* QPNP_PIN_MODE_DIG_OUT */
+		qcom,output-type = <0>;		/* QPNP_PIN_OUT_BUF_CMOS */
+		qcom,pull = <5>;		/* QPNP_PIN_PULL_NO */
+		qcom,vin-sel = <2>;		/* QPNP_PIN_VIN2 */
+		qcom,out-strength = <1>;	/* QPNP_PIN_OUT_STRENGTH_LOW */
+		qcom,src-sel = <0>;		/* QPNP_PIN_SEL_FUNC_CONSTANT */
 		qcom,master-en = <1>;
 	};
 
@@ -699,14 +764,15 @@
 	mpp@a700 { /* MPP 8 */
 		qcom,mode = <1>;          /* QPNP_PIN_MODE_DIG_OUT */
 		qcom,out-strength = <1>;  /* QPNP_PIN_OUT_STRENGTH_LOW */
-		qcom,master-en = <1>;
+		qcom,vin-sel = <2>; /* PM8941_S3 1.8V > 1.6V */
+		//qcom,master-en = <1>; /* ENABLE MPP */
 	};
 };
 
 &slim_msm {
 	taiko_codec {
 		qcom,cdc-micbias1-ext-cap;
-		qcom,cdc-micbias2-ext-cap;
+		qcom,cdc-micbias3-ext-cap;
 		qcom,cdc-micbias4-ext-cap;
 	};
 };
@@ -730,6 +796,12 @@
 	};
 };
 
+&dsi_truly_r63417_1080_cmd {
+	qcom,cont-splash-enabled;
+};
+&dsi_jdi_r63417_1080_cmd {
+	qcom,cont-splash-enabled;
+};
 &dsi_tosh_720_vid {
        qcom,cont-splash-enabled;
 };

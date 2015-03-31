@@ -11,44 +11,83 @@
  * GNU General Public License for more details.
  */
 
+&pm8941_lsid0 {
+	qcom,leds@a700 {
+		status = "okay";
+		qcom,led_mpp_8 {
+			label = "mpp";
+			linux,name = "button-backlight";
+			linux,default-trigger = "none";
+			qcom,default-state = "off";
+			qcom,max-current = <40>;
+			qcom,current-setting = <5>;
+			qcom,id = <6>;
+			qcom,mode = "manual";
+			qcom,source-sel = <1>;
+			qcom,mode-ctrl = <0x60>;
+		};
+	};
+};
 &pm8941_lsid1 {
 	qcom,leds@d000 {
 		status = "okay";
-		qcom,rgb_0 {
-			label = "rgb";
-			linux,name = "led:rgb_red";
-			qcom,mode = "pwm";
-			qcom,pwm-channel = <6>;
-			qcom,pwm-us = <1000>;
-			qcom,max-current = <12>;
-			qcom,default-state = "off";
-			qcom,id = <3>;
-			linux,default-trigger =
-				"battery-charging";
-		};
+qcom,rgb_0 { 
+				label = "rgb"; 
+				linux,name = "red";//"led:rgb_red"; 
+				qcom,mode = "pwm"; 
+				qcom,pwm-channel = <6>; 
+				qcom,pwm-us = <1000>; 
+				qcom,max-current = <12>; 
+				qcom,default-state = "off"; 
+				qcom,id = <3>; 
+				//linux,default-trigger = "battery-charging"; 
+				qcom,use-blink; 
+				qcom,start-idx = <1>; 
+				qcom,duty-pcts = [95 95 95 95 95
+						95 95 95 95 95]; 
+				qcom,pause-lo = <0>; 
+				qcom,pause-hi = <0>; 
+				qcom,ramp-step-ms = <500>; 
+				qcom,lut-flags = <3>; 
+			}; 
+			qcom,rgb_1 { 
+				label = "rgb"; 
+				linux,name = "green";//"led:rgb_green";
+				qcom,mode = "pwm"; 
+				qcom,pwm-channel = <5>; 
+				qcom,pwm-us = <1000>; 
+				qcom,max-current = <12>; 
+				qcom,default-state = "off"; 
+				qcom,id = <4>; 
+				//linux,default-trigger = "battery-full";
+				qcom,use-blink; 
+				qcom,start-idx = <1>; 
+				qcom,duty-pcts = [95 95 95 95 95
+						95 95 95 95 95]; 
+				qcom,pause-lo = <0>; 
+				qcom,pause-hi = <0>; 
+				qcom,ramp-step-ms = <500>; 
+				qcom,lut-flags = <3>; 
+			}; 
+			qcom,rgb_2 { 
+				label = "rgb"; 
+				linux,name = "blue";//"led:rgb_blue";
+				qcom,mode = "pwm"; 
+				qcom,pwm-channel = <4>; 
+				qcom,pwm-us = <1000>; 
+				qcom,max-current = <12>; 
+				qcom,id = <5>; 
+				status = "disabled";
+				qcom,use-blink; 
+				qcom,start-idx = <1>; 
+				qcom,duty-pcts = [95 95 95 95 95
+						95 95 95 95 95]; 
+				qcom,pause-lo = <0>; 
+				qcom,pause-hi = <0>; 
+				qcom,ramp-step-ms = <500>; 
+				qcom,lut-flags = <3>; 
+			};
 
-		qcom,rgb_1 {
-			label = "rgb";
-			linux,name = "led:rgb_green";
-			qcom,mode = "pwm";
-			qcom,pwm-channel = <5>;
-			qcom,pwm-us = <1000>;
-			qcom,max-current = <12>;
-			qcom,default-state = "off";
-			qcom,id = <4>;
-			linux,default-trigger = "battery-full";
-		};
-
-		qcom,rgb_2 {
-			label = "rgb";
-			linux,name = "led:rgb_blue";
-			qcom,mode = "pwm";
-			qcom,pwm-channel = <4>;
-			qcom,pwm-us = <1000>;
-			qcom,max-current = <12>;
-			qcom,id = <5>;
-			status = "disabled";
-		};
 	};
 
 	qcom,leds@d100 {
