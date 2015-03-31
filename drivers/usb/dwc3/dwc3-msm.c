@@ -74,7 +74,11 @@ module_param(ss_phy_override_deemphasis, int, S_IRUGO|S_IWUSR);
 MODULE_PARM_DESC(ss_phy_override_deemphasis, "Override SSPHY demphasis value");
 
 /* Enable Proprietary charger detection */
+#if defined(CONFIG_GN_Q_BSP_PM_NON_STANDARD_CHARGER_SUPPORT)
+static bool prop_chg_detect=true;
+#else
 static bool prop_chg_detect;
+#endif
 module_param(prop_chg_detect, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(prop_chg_detect, "Enable Proprietary charger detection");
 
@@ -1694,9 +1698,13 @@ static const char *chg_to_string(enum dwc3_chg_type chg_type)
 	default:			return "UNKNOWN_CHARGER";
 	}
 }
-
+#if defined(CONFIG_GN_Q_BSP_PM_NON_STANDARD_CHARGER_SUPPORT)
+#define DWC3_CHG_DCD_POLL_TIME		(300 * HZ/1000) /* 300 msec */
+#define DWC3_CHG_DCD_MAX_RETRIES	2 /* Tdcd_tmout = 2 * 300 msec */
+#else
 #define DWC3_CHG_DCD_POLL_TIME		(100 * HZ/1000) /* 100 msec */
 #define DWC3_CHG_DCD_MAX_RETRIES	6 /* Tdcd_tmout = 6 * 100 msec */
+#endif
 #define DWC3_CHG_PRIMARY_DET_TIME	(50 * HZ/1000) /* TVDPSRC_ON */
 #define DWC3_CHG_SECONDARY_DET_TIME	(50 * HZ/1000) /* TVDMSRC_ON */
 

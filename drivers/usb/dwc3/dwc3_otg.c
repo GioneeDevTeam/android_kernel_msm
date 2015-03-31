@@ -25,7 +25,11 @@
 #include "xhci.h"
 
 #define VBUS_REG_CHECK_DELAY	(msecs_to_jiffies(1000))
+#if defined(CONFIG_GN_Q_BSP_PM_NON_STANDARD_CHARGER_SUPPORT)
+#define MAX_INVALID_CHRGR_RETRY 0
+#else
 #define MAX_INVALID_CHRGR_RETRY 3
+#endif
 static int max_chgr_retry_count = MAX_INVALID_CHRGR_RETRY;
 module_param(max_chgr_retry_count, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(max_chgr_retry_count, "Max invalid charger retry count");
@@ -535,21 +539,30 @@ static int dwc3_otg_set_power(struct usb_phy *phy, unsigned mA)
 		power_supply_type = POWER_SUPPLY_TYPE_USB;
 	else if (dotg->charger->chg_type == DWC3_CDP_CHARGER)
 		power_supply_type = POWER_SUPPLY_TYPE_USB_CDP;
+#if defined(CONFIG_GN_Q_BSP_PM_NON_STANDARD_CHARGER_SUPPORT)
+	else if (dotg->charger->chg_type == DWC3_DCP_CHARGER ||
+			dotg->charger->chg_type == DWC3_PROPRIETARY_CHARGER  ||
+			dotg->charger->chg_type == DWC3_FLOATED_CHARGER)
+#else
 	else if (dotg->charger->chg_type == DWC3_DCP_CHARGER ||
 			dotg->charger->chg_type == DWC3_PROPRIETARY_CHARGER)
+#endif
 		power_supply_type = POWER_SUPPLY_TYPE_USB_DCP;
 	else
 		power_supply_type = POWER_SUPPLY_TYPE_BATTERY;
 
 	power_supply_set_supply_type(dotg->psy, power_supply_type);
 
-	if (dotg->charger->chg_type == DWC3_CDP_CHARGER)
+	if ((dotg->charger->chg_type == DWC3_CDP_CHARGER) && mA > 2)
 		mA = DWC3_IDEV_CHG_MAX;
-
+#if defined(CONFIG_GN_Q_BSP_PM_NON_STANDARD_CHARGER_SUPPORT)
+	if ((dotg->charger->chg_type == DWC3_FLOATED_CHARGER) && mA == 0)
+        mA = 1000; 
+#endif
 	if (dotg->charger->max_power == mA)
 		return 0;
 
-	dev_info(phy->dev, "Avail curr from USB = %u\n", mA);
+	dev_info(phy->dev, "Avail curr from USB = %u,charger type = %d\n", mA,dotg->charger->chg_type);
 
 	if (dotg->charger->max_power <= 2 && mA > 2) {
 		/* Enable charging */
