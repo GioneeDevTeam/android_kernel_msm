@@ -100,11 +100,27 @@ MODULE_VERSION("1.0");
 
 static const char longname[] = "Gadget Android";
 
+#ifdef CONFIG_GN_Q_BSP_SUPPORT
+#define GN_PRODUCT_MODEL "GN715"
+#define GN_PRODUCT_MANUFACTURER "GiONEE"
+#endif
+
 /* Default vendor and product IDs, overridden by userspace */
-#define VENDOR_ID		0x18D1
+#define VENDOR_ID		0x271D
 #define PRODUCT_ID		0x0001
 
 #define ANDROID_DEVICE_NODE_NAME_LENGTH 11
+#if defined (GN_OVERSEA_PRODUCT)
+#include "gn_oversea_custom_usb_name.h"
+#ifdef GN_USB_MANUFACTURER_STRING
+#undef GN_PRODUCT_MANUFACTURER
+#define GN_PRODUCT_MANUFACTURER GN_USB_MANUFACTURER_STRING
+#endif
+#ifdef GN_USB_PRODUCT_STRING
+#undef GN_PRODUCT_MODEL
+#define GN_PRODUCT_MODEL GN_USB_PRODUCT_STRING
+#endif
+#endif/*GN_OVERSEA_PRODUCT*/
 
 struct android_usb_function {
 	char *name;
@@ -2651,9 +2667,15 @@ static int android_bind(struct usb_composite_dev *cdev)
 	device_desc.iProduct = id;
 
 	/* Default strings - should be updated by userspace */
+#ifdef CONFIG_GN_Q_BSP_SUPPORT
+	strlcpy(manufacturer_string, GN_PRODUCT_MANUFACTURER,
+		sizeof(manufacturer_string) - 1);
+	strlcpy(product_string, GN_PRODUCT_MODEL, sizeof(product_string) - 1);
+#else
 	strlcpy(manufacturer_string, "Android",
 		sizeof(manufacturer_string) - 1);
 	strlcpy(product_string, "Android", sizeof(product_string) - 1);
+#endif /* CONFIG_GN_Q_BSP_SUPPORT */
 	strlcpy(serial_string, "0123456789ABCDEF", sizeof(serial_string) - 1);
 
 	id = usb_string_id(cdev);

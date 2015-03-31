@@ -296,6 +296,27 @@
 
 #include "gadget_chips.h"
 
+#if defined (GN_OVERSEA_PRODUCT)
+#include "gn_oversea_custom_usb_name.h"
+
+#ifdef GN_USB_VENDOR_ID_8C
+	#define GN_VENDOR_ID GN_USB_VENDOR_ID_8C
+#else
+	#define GN_VENDOR_ID "Linux"
+#endif
+
+#ifdef GN_USB_DISK_ID_16C
+	#define GN_DISK_ID GN_USB_DISK_ID_16C
+#else
+	#define GN_DISK_ID "File-Stor Gadget"
+#endif
+
+#ifdef GN_USB_CDROM_ID_16C
+	#define GN_CDROM_ID GN_USB_CDROM_ID_16C
+#else
+	#define GN_CDROM_ID "File-CD Gadget"
+#endif
+#endif/*GN_OVERSEA_PRODUCT*/
 
 /*------------------------------------------------------------------------*/
 
@@ -3012,6 +3033,15 @@ buffhds_first_it:
 			i = 0x0399;
 		}
 	}
+#if defined (GN_OVERSEA_PRODUCT)
+	snprintf(common->inquiry_string, sizeof common->inquiry_string,
+		 "%-8s%-16s%04x", cfg->vendor_name ?: GN_VENDOR_ID,
+		 /* Assume product name dependent on the first LUN */
+		 cfg->product_name ?: (common->luns->cdrom
+				     ? GN_DISK_ID
+				     : GN_CDROM_ID),
+		 i);
+#else
 	snprintf(common->inquiry_string, sizeof common->inquiry_string,
 		 "%-8s%-16s%04x", cfg->vendor_name ?: "Linux",
 		 /* Assume product name dependent on the first LUN */
@@ -3019,6 +3049,7 @@ buffhds_first_it:
 				     ? "File-Stor Gadget"
 				     : "File-CD Gadget"),
 		 i);
+#endif/*GN_OVERSEA_PRODUCT*/
 
 	/*
 	 * Some peripheral controllers are known not to be able to
