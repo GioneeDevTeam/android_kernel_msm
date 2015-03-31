@@ -226,6 +226,39 @@ static int system_suspend_handler(struct notifier_block *nb,
 	return NOTIFY_OK;
 }
 
+#if defined(CONFIG_GN_Q_BSP_CPU_WR_HOTPLUG_DISABLED_SUPPORT)
+static ssize_t show_hotplug_disable(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	unsigned int val = 0;
+	val = rq_info.hotplug_disabled;
+	return snprintf(buf, MAX_LONG_SIZE, "%d\n", val);
+}
+
+static ssize_t store_hotplug_disable(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	unsigned int val = 0;
+	int ret = 0;
+
+	ret = kstrtoint(buf, 10, &val); 
+	if(ret){
+		return 0;
+	}
+
+	if(val >= 1){
+		rq_info.hotplug_disabled = 1;
+	}else{
+		rq_info.hotplug_disabled = 0;
+	}
+
+	return count;
+}
+
+static struct kobj_attribute hotplug_disabled_attr =
+	__ATTR(hotplug_disable, 0666, show_hotplug_disable,
+			store_hotplug_disable);
+#else
 
 static ssize_t hotplug_disable_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
@@ -236,6 +269,9 @@ static ssize_t hotplug_disable_show(struct kobject *kobj,
 }
 
 static struct kobj_attribute hotplug_disabled_attr = __ATTR_RO(hotplug_disable);
+
+#endif
+
 
 static void def_work_fn(struct work_struct *work)
 {
